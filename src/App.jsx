@@ -1,121 +1,152 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import AppLayout from "@/components/layout/AppLayout";
+import LoginPage from "@/pages/auth/LoginPage";
 
-function App() {
-  const [count, setCount] = useState(0)
+import DashboardPage from "@/pages/admin/DashboardPage";
+import UsuariosPage from "@/pages/admin/UsuariosPage";
+import SkusPage from "@/pages/admin/SkusPage";
+import PurchaseOrdersPage from "@/pages/admin/PurchaseOrdersPage";
+import PurchaseOrderDetailPage from "@/pages/admin/PurchaseOrderDetailPage";
+import QRImportPage from "@/pages/admin/QRImportPage";
+import ReportesPage from "@/pages/admin/ReportesPage";
+import BackupPage from "@/pages/admin/BackupPage";
+import ResetPage from "@/pages/admin/ResetPage";
 
+import ProduccionPage from "@/pages/produccion/ProduccionPage";
+
+import EmbarquePage from "@/pages/embarque/EmbarquePage";
+
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/unauthorized"
+        element={
+          <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+            <p className="text-zinc-400">
+              Sin permisos para acceder a esta sección.
+            </p>
+          </div>
+        }
+      />
+      {/* Producción */}
+      <Route
+        path="/produccion"
+        element={
+          <ProtectedRoute roles={["operador_produccion", "superadmin"]}>
+            <AppLayout>
+              <ProduccionPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Embarque */}
+      <Route
+        path="/embarque"
+        element={
+          <ProtectedRoute roles={["operador_embarque", "superadmin"]}>
+            <AppLayout>
+              <EmbarquePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Admin */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <DashboardPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/usuarios"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <UsuariosPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/skus"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <SkusPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/purchase-orders"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <PurchaseOrdersPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/purchase-orders/:id"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <PurchaseOrderDetailPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/qr-import"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <QRImportPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reportes"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <ReportesPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <Route
+        path="/admin/backup"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <BackupPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reset"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <ResetPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
 }
-
-export default App
