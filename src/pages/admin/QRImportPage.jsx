@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getQrStats, importQRs, getJobStatus, getRecentJobs } from "@/api/qr";
+import {
+  getQrStats,
+  importQRs,
+  getJobStatus,
+  getRecentJobs,
+  matchQRsWithSkus,
+} from "@/api/qr";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +19,7 @@ import {
   RefreshCw,
   Clock,
   Loader2,
+  Link2,
 } from "lucide-react";
 
 const ESTADO_JOB = {
@@ -103,6 +110,7 @@ function JobCard({ job }) {
 export default function QRImportPage() {
   const [lastGetTime, setLastGetTime] = useState("2000-01-01 00:00:00");
   const [activeJobId, setActiveJobId] = useState(null);
+  const [matchResult, setMatchResult] = useState(null);
   const pollingRef = useRef(null);
 
   const { data: stats, refetch: refetchStats } = useQuery({
@@ -120,6 +128,20 @@ export default function QRImportPage() {
     onSuccess: (res) => {
       setActiveJobId(res.data.job_id);
       refetchJobs();
+    },
+  });
+
+  const matchMut = useMutation({
+    mutationFn: () => matchQRsWithSkus(),
+    onSuccess: (res) => {
+      setMatchResult({ ok: true, ...res.data });
+      refetchStats();
+    },
+    onError: (err) => {
+      setMatchResult({
+        ok: false,
+        error: err.response?.data?.error || err.message,
+      });
     },
   });
 
@@ -230,6 +252,72 @@ export default function QRImportPage() {
             <Loader2 size={12} className="animate-spin text-blue-400" />
             Proceso corriendo en el servidor. Puedes cerrar esta página — el
             proceso continuará. Actualizando cada 5 segundos...
+          </div>
+        )}
+      </div>
+
+      {/* Match QRs <-> SKUs */}
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 mb-6 space-y-4">
+        <div>
+          <h2 className="text-sm font-medium text-zinc-300">
+            Vincular QRs con SKUs
+          </h2>
+          <p className="text-xs text-zinc-600 mt-1">
+            Asigna <span className="font-mono">sku_id</span> a los QRs sin SKU
+            haciendo match por UPC. Útil cuando se importaron QRs antes que los
+            SKUs.
+          </p>
+        </div>
+
+        <Button
+          onClick={() => {
+            setMatchResult(null);
+            matchMut.mutate();
+          }}
+          disabled={matchMut.isPending}
+          variant="outline"
+          className="border-white/10 bg-white/5 text-white hover:bg-white/10 gap-1.5"
+        >
+          {matchMut.isPending ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Vinculando...
+            </>
+          ) : (
+            <>
+              <Link2 size={14} />
+              Vincular QRs huérfanos
+            </>
+          )}
+        </Button>
+
+        {matchResult?.ok && (
+          <div className="flex flex-wrap gap-3 text-xs bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-3 py-2">
+            <span className="text-emerald-400">{matchResult.message}</span>
+            <span className="text-zinc-500">
+              Pendientes antes:{" "}
+              <span className="text-white font-medium">
+                {matchResult.pendientes_antes?.toLocaleString()}
+              </span>
+            </span>
+            <span className="text-zinc-500">
+              Actualizados:{" "}
+              <span className="text-emerald-400 font-medium">
+                {matchResult.actualizados?.toLocaleString()}
+              </span>
+            </span>
+            <span className="text-zinc-500">
+              Sin match:{" "}
+              <span className="text-amber-400 font-medium">
+                {matchResult.sin_match?.toLocaleString()}
+              </span>
+            </span>
+          </div>
+        )}
+
+        {matchResult?.ok === false && (
+          <div className="text-xs text-red-400 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2">
+            {matchResult.error}
           </div>
         )}
       </div>
