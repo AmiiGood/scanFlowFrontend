@@ -17,6 +17,14 @@ import {
 } from "lucide-react";
 import * as Tone from "tone";
 
+function getModoEscaneo(carton) {
+  if (!carton) return null;
+  if (carton.tipo === "musical") return "qr";
+  const total =
+    carton.detalles?.reduce((s, d) => s + d.cantidad_esperada, 0) || 0;
+  return carton.tipo === "mono_sku" && total < 12 ? "qr" : "caja";
+}
+
 function useSound() {
   const beepOk = useCallback(async () => {
     await Tone.start();
@@ -80,6 +88,10 @@ export default function EmbarquePage() {
   const [lastScan, setLastScan] = useState(null);
   const [scanLog, setScanLog] = useState([]);
 
+  const modoEscaneo = getModoEscaneo(cartonActivo);
+  const esParcial =
+    cartonActivo?.tipo === "mono_sku" && modoEscaneo === "qr";
+
   const triggerFlash = (type) => {
     clearTimeout(flashTimer.current);
     setFlash(type);
@@ -93,12 +105,12 @@ export default function EmbarquePage() {
   useEffect(() => {
     if (!cartonActivo) {
       setTimeout(() => cartonInputRef.current?.focus(), 100);
-    } else if (cartonActivo.tipo === "mono_sku") {
+    } else if (modoEscaneo === "caja") {
       setTimeout(() => cajaInputRef.current?.focus(), 100);
     } else {
       setTimeout(() => qrInputRef.current?.focus(), 100);
     }
-  }, [cartonActivo]);
+  }, [cartonActivo, modoEscaneo]);
 
   // Mantener focus en el input activo
   useEffect(() => {
@@ -107,8 +119,7 @@ export default function EmbarquePage() {
         const active = document.activeElement;
         if (active?.tagName === "INPUT" || active?.tagName === "BUTTON") return;
         if (!cartonActivo) cartonInputRef.current?.focus();
-        else if (cartonActivo.tipo === "mono_sku")
-          cajaInputRef.current?.focus();
+        else if (modoEscaneo === "caja") cajaInputRef.current?.focus();
         else qrInputRef.current?.focus();
       }, 100);
     }
@@ -118,18 +129,18 @@ export default function EmbarquePage() {
       document.removeEventListener("click", handleFocusLost);
       document.removeEventListener("focusout", handleFocusLost);
     };
-  }, [cartonActivo]);
+  }, [cartonActivo, modoEscaneo]);
 
   const { data: progresoMusical, refetch: refetchProgreso } = useQuery({
     queryKey: ["progreso-musical", cartonActivo?.id],
     queryFn: () => getProgresoMusical(cartonActivo.id).then((r) => r.data),
-    enabled: !!cartonActivo && cartonActivo.tipo === "musical",
+    enabled: !!cartonActivo && modoEscaneo === "qr",
   });
 
   const { data: cajas = [] } = useQuery({
     queryKey: ["cajas-empacadas"],
     queryFn: () => getCajas({ estado: "empacada" }).then((r) => r.data),
-    enabled: !!cartonActivo && cartonActivo.tipo === "mono_sku",
+    enabled: !!cartonActivo && modoEscaneo === "caja",
   });
 
   // Buscar cartón al escanear
@@ -147,12 +158,16 @@ export default function EmbarquePage() {
       beepOk();
       triggerFlash("ok");
       setCartonActivo(carton);
+      const modo = getModoEscaneo(carton);
+      const esParcialNuevo = carton.tipo === "mono_sku" && modo === "qr";
       setLastScan({
         ok: true,
         msg:
           carton.tipo === "musical"
             ? "MUSICAL — Escanea QRs"
-            : "MONO SKU — Escanea la caja",
+            : esParcialNuevo
+              ? "PARCIAL — Escanea QRs"
+              : "MONO SKU — Escanea la caja",
         tipo: carton.tipo,
       });
       setCodigoCarton("");
@@ -428,9 +443,9 @@ export default function EmbarquePage() {
             <p className="text-gray-300 font-medium">
               {!cartonActivo
                 ? "Escanea el código del cartón para comenzar"
-                : cartonActivo.tipo === "mono_sku"
+                : modoEscaneo === "caja"
                   ? "Escanea la caja empacada"
-                  : "Escanea QRs del cartón musical"}
+                  : "Escanea QRs del cartón"}
             </p>
           </div>
         )}
@@ -451,19 +466,23 @@ export default function EmbarquePage() {
                     className={`text-xs px-2 py-1 rounded-full font-bold ${
                       cartonActivo.tipo === "musical"
                         ? "bg-amber-100 text-amber-600"
-                        : "bg-blue-100 text-blue-600"
+                        : esParcial
+                          ? "bg-purple-100 text-purple-600"
+                          : "bg-blue-100 text-blue-600"
                     }`}
                   >
                     {cartonActivo.tipo === "musical"
                       ? "🎵 Musical"
-                      : "📦 Mono SKU"}
+                      : esParcial
+                        ? "📦 Parcial"
+                        : "📦 Mono SKU"}
                   </span>
                   <span className="text-xs text-gray-400">
                     PO {cartonActivo.po_number}
                   </span>
                 </div>
               </div>
-              {cartonActivo.tipo === "musical" && (
+              {modoEscaneo === "qr" && (
                 <div className="text-right">
                   <p className="text-6xl font-black text-gray-900 tabular-nums leading-none">
                     {escaneadosMusical}
@@ -476,7 +495,7 @@ export default function EmbarquePage() {
             </div>
 
             {/* Progreso musical por SKU */}
-            {cartonActivo.tipo === "musical" && progresoMusical && (
+            {modoEscaneo === "qr" && progresoMusical && (
               <>
                 <div className="h-6 rounded-full bg-gray-100 overflow-hidden mb-3">
                   <div
@@ -517,7 +536,7 @@ export default function EmbarquePage() {
             )}
 
             {/* Detalle mono SKU */}
-            {cartonActivo.tipo === "mono_sku" && (
+            {modoEscaneo === "caja" && (
               <div className="space-y-1">
                 {cartonActivo.detalles?.map((d) => (
                   <div
@@ -568,7 +587,7 @@ export default function EmbarquePage() {
         </div>
 
         {/* Input caja — mono SKU */}
-        {cartonActivo?.tipo === "mono_sku" && (
+        {modoEscaneo === "caja" && (
           <div className="bg-white rounded-2xl border-2 border-blue-500 p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs font-black text-white">
@@ -605,8 +624,8 @@ export default function EmbarquePage() {
           </div>
         )}
 
-        {/* Input QR — musical */}
-        {cartonActivo?.tipo === "musical" && (
+        {/* Input QR — musical o parcial */}
+        {modoEscaneo === "qr" && (
           <div className="bg-white rounded-2xl border-2 border-amber-400 p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-black text-white">
