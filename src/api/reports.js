@@ -15,5 +15,7 @@ export const getCartonesPendientesPorPO = (po_id) =>
 export const getQrsSinSKU = (params = {}) =>
   api.get("/reports/qrs-sin-sku", { params });
 export const getHistorialEnviosT4 = () => api.get("/reports/envios-t4");
+export const getDetalleCartonesPorPO = (po_id) =>
+  api.get(`/reports/po/${po_id}/detalle-cartones`);
 export const getProgresoPO = (po_id) =>
   api.get(`/reports/po/${po_id}/progreso`);

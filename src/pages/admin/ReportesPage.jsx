@@ -6,26 +6,25 @@ import {
   getCajasPorSKU,
   getQrsSinSKU,
   getHistorialEnviosT4,
-  getProduccionPorOperador,
+  getCartonesPendientesPorPO,
+  getDetalleCartonesPorPO,
 } from "@/api/reports";
 import { getPurchaseOrders } from "@/api/purchaseOrders";
-import { getCartonesPendientesPorPO } from "@/api/reports";
 import PageHeader from "@/components/layout/PageHeader";
 import Paginator from "@/components/ui/Paginator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { exportToExcel, exportMultiSheet } from "@/lib/exportExcel";
+import { exportToExcel } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
   BarChart2,
   Search,
   Download,
-  CheckCircle2,
-  XCircle,
   Package,
   QrCode,
   Send,
   Activity,
+  Layers,
 } from "lucide-react";
 
 const TABS = [
@@ -33,6 +32,7 @@ const TABS = [
   { id: "trazabilidad", label: "Trazabilidad QR", icon: QrCode },
   { id: "cajas", label: "Cajas por SKU", icon: Package },
   { id: "pendientes", label: "Cartones pendientes", icon: BarChart2 },
+  { id: "detalle-po", label: "Detalle PO-Cartón-QR", icon: Layers },
   { id: "sin-sku", label: "QRs sin SKU", icon: QrCode },
   { id: "envios", label: "Historial T4", icon: Send },
 ];
@@ -166,7 +166,7 @@ function TabTrazabilidad() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pega o escanea el código QR completo..."
+            placeholder="Pega o escanea el código QR (URL completa o solo el código)..."
             className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9 font-mono text-xs"
           />
         </div>
@@ -188,21 +188,21 @@ function TabTrazabilidad() {
 
       {data && (
         <div className="space-y-3">
-          {/* Info QR */}
           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
             <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
               Información del QR
             </p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
               {[
                 { label: "Código QR", value: data.codigo_qr, mono: true },
                 { label: "UPC", value: data.upc, mono: true },
                 { label: "SKU", value: data.sku_number || "—" },
+                { label: "Style No", value: data.style_no || "—" },
                 { label: "Producto", value: data.style_name || "—" },
                 { label: "Talla", value: data.size || "—" },
-                { label: "Color", value: data.color_name || "—" },
+                { label: "Color", value: `${data.color || ""} ${data.color_name ? "· " + data.color_name : ""}`.trim() || "—" },
                 {
-                  label: "Estado",
+                  label: "Estado QR",
                   value: data.estado,
                   color:
                     data.estado === "enviado"
@@ -211,11 +211,15 @@ function TabTrazabilidad() {
                         ? "text-blue-400"
                         : "text-emerald-400",
                 },
+                {
+                  label: "Total escaneos",
+                  value: data.total_escaneos || 0,
+                },
               ].map(({ label, value, mono, color }) => (
                 <div key={label}>
                   <p className="text-zinc-600 text-xs">{label}</p>
                   <p
-                    className={`text-white font-medium ${mono ? "font-mono text-xs" : ""} ${color || ""}`}
+                    className={`text-white font-medium ${mono ? "font-mono text-xs break-all" : ""} ${color || ""}`}
                   >
                     {value}
                   </p>
@@ -224,11 +228,10 @@ function TabTrazabilidad() {
             </div>
           </div>
 
-          {/* Cadena de custodia */}
-          {data.codigo_caja && (
+          {data.total_escaneos > 0 && (
             <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
               <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
-                Cadena de custodia
+                Cadena de custodia (escaneo más reciente)
               </p>
               <div className="space-y-3">
                 {[
@@ -239,18 +242,18 @@ function TabTrazabilidad() {
                   },
                   {
                     label: "Caja",
-                    value: data.codigo_caja,
+                    value: data.codigo_caja || "(sin caja, directo a cartón)",
                     sub: data.caja_estado,
                   },
                   {
                     label: "Cartón",
                     value: data.carton_id,
-                    sub: `${data.carton_tipo} · ${data.carton_estado}`,
+                    sub: `${data.carton_tipo || ""} · ${data.carton_estado || ""}`,
                   },
                   {
                     label: "Purchase Order",
                     value: data.po_number,
-                    sub: data.po_estado,
+                    sub: `${data.po_estado} ${data.cfm_xf_date ? "· XF: " + data.cfm_xf_date : ""}`,
                   },
                 ].map(
                   ({ label, value, sub, ts }) =>
@@ -264,9 +267,7 @@ function TabTrazabilidad() {
                           <p className="text-white font-mono text-xs font-medium">
                             {value}
                           </p>
-                          {sub && (
-                            <p className="text-zinc-500 text-xs">{sub}</p>
-                          )}
+                          {sub && <p className="text-zinc-500 text-xs">{sub}</p>}
                         </div>
                         {ts && (
                           <span className="text-zinc-600 text-xs">
@@ -279,6 +280,66 @@ function TabTrazabilidad() {
               </div>
             </div>
           )}
+
+          {data.escaneos?.length > 1 && (
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+              <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
+                Historial de escaneos ({data.escaneos.length})
+              </p>
+              <div className="space-y-2">
+                {data.escaneos.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between text-xs py-2 border-b border-white/5 last:border-0"
+                  >
+                    <div className="flex gap-3">
+                      <span className="text-zinc-500">{e.escaneado_por}</span>
+                      <span className="text-white font-mono">
+                        {e.codigo_caja || e.carton_id}
+                      </span>
+                      <span className="text-zinc-600">
+                        PO {e.po_number}
+                      </span>
+                    </div>
+                    <span className="text-zinc-500">
+                      {new Date(e.escaneado_at).toLocaleString("es-MX")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.envios?.length > 0 && (
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+              <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
+                Envíos a T4
+              </p>
+              <div className="space-y-2">
+                {data.envios.map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between text-xs py-2 border-b border-white/5 last:border-0"
+                  >
+                    <span
+                      className={
+                        e.estado === "enviado"
+                          ? "text-violet-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {e.estado}
+                    </span>
+                    <span className="text-zinc-500">
+                      {new Date(
+                        e.enviado_at || e.cancelado_at,
+                      ).toLocaleString("es-MX")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -287,65 +348,114 @@ function TabTrazabilidad() {
 
 // --- Tab: Cajas por SKU ---
 function TabCajas() {
-  const [search, setSearch] = useState("");
-  const [estado, setEstado] = useState("");
+  const [filters, setFilters] = useState({
+    sku: "",
+    estado: "",
+    po_number: "",
+    operador: "",
+    fecha_desde: "",
+    fecha_hasta: "",
+  });
   const [page, setPage] = useState(1);
-  const debouncedSearch = useDebounce(search, 300);
+  const [exporting, setExporting] = useState(false);
+
+  const debouncedFilters = {
+    sku: useDebounce(filters.sku, 300),
+    po_number: useDebounce(filters.po_number, 300),
+    operador: useDebounce(filters.operador, 300),
+    estado: filters.estado,
+    fecha_desde: filters.fecha_desde,
+    fecha_hasta: filters.fecha_hasta,
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["cajas-sku", debouncedSearch, estado, page],
+    queryKey: ["cajas-sku", debouncedFilters, page],
     queryFn: () =>
-      getCajasPorSKU({ sku: debouncedSearch, estado, page, limit: 50 }).then(
+      getCajasPorSKU({ ...debouncedFilters, page, limit: 50 }).then(
         (r) => r.data,
       ),
     keepPreviousData: true,
   });
 
-  function handleExport() {
-    exportToExcel(
-      (data?.data || []).map((r) => ({
-        "Código Caja": r.codigo_caja,
-        SKU: r.sku_number,
-        Producto: r.style_name,
-        Talla: r.size,
-        "Cantidad Pares": r.cantidad_pares,
-        "QRs Escaneados": r.qrs_escaneados,
-        Estado: r.estado,
-        "Creado Por": r.creado_por,
-        Fecha: new Date(r.created_at).toLocaleString("es-MX"),
-      })),
-      "cajas-por-sku",
-    );
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await getCajasPorSKU({ ...debouncedFilters, all: 1 });
+      exportToExcel(
+        (res.data.data || []).map((r) => ({
+          "Código Caja": r.codigo_caja,
+          "PO": r.po_number || "",
+          "Cartón": r.carton_id || "",
+          SKU: r.sku_number,
+          Producto: r.style_name,
+          Talla: r.size,
+          Color: r.color_name,
+          "Pares": r.cantidad_pares,
+          "QRs Escaneados": r.qrs_escaneados,
+          Estado: r.estado,
+          "Creado Por": r.creado_por,
+          Fecha: new Date(r.created_at).toLocaleString("es-MX"),
+        })),
+        "cajas-por-sku",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+        <div className="relative md:col-span-2">
           <Search
             size={14}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
           />
           <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Buscar por SKU..."
+            value={filters.sku}
+            onChange={(e) => set("sku", e.target.value)}
+            placeholder="SKU..."
             className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
           />
         </div>
+        <Input
+          value={filters.po_number}
+          onChange={(e) => set("po_number", e.target.value)}
+          placeholder="PO number..."
+          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
+        />
+        <Input
+          value={filters.operador}
+          onChange={(e) => set("operador", e.target.value)}
+          placeholder="Operador..."
+          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
+        />
+        <Input
+          type="date"
+          value={filters.fecha_desde}
+          onChange={(e) => set("fecha_desde", e.target.value)}
+          className="bg-white/5 border-white/10 text-white h-9"
+        />
+        <Input
+          type="date"
+          value={filters.fecha_hasta}
+          onChange={(e) => set("fecha_hasta", e.target.value)}
+          className="bg-white/5 border-white/10 text-white h-9"
+        />
+      </div>
+      <div className="flex items-center gap-3">
         <select
-          value={estado}
-          onChange={(e) => {
-            setEstado(e.target.value);
-            setPage(1);
-          }}
+          value={filters.estado}
+          onChange={(e) => set("estado", e.target.value)}
           className="h-9 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 focus:outline-none"
         >
           <option value="" className="bg-zinc-900">
-            Todos
+            Todos los estados
           </option>
           <option value="abierta" className="bg-zinc-900">
             Abiertas
@@ -354,13 +464,17 @@ function TabCajas() {
             Empacadas
           </option>
         </select>
+        <span className="text-xs text-zinc-500">
+          {data?.total?.toLocaleString() || 0} resultados
+        </span>
         <Button
           size="sm"
           onClick={handleExport}
-          disabled={!data?.data?.length}
+          disabled={!data?.total || exporting}
           className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
         >
-          <Download size={14} /> Exportar
+          <Download size={14} />
+          {exporting ? "Exportando..." : "Exportar todo"}
         </Button>
       </div>
       <div className="rounded-xl border border-white/5 overflow-hidden">
@@ -369,6 +483,9 @@ function TabCajas() {
             <tr className="border-b border-white/5 bg-white/[0.02]">
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 Código Caja
+              </th>
+              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
+                PO / Cartón
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 SKU
@@ -393,7 +510,7 @@ function TabCajas() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={8} className="px-4 py-8 text-center text-zinc-600">
                   Cargando...
                 </td>
               </tr>
@@ -405,6 +522,10 @@ function TabCajas() {
                 >
                   <td className="px-4 py-3 text-white font-mono text-xs">
                     {r.codigo_caja}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">
+                    <div>{r.po_number || "—"}</div>
+                    <div className="text-zinc-600">{r.carton_id || ""}</div>
                   </td>
                   <td className="px-4 py-3 text-zinc-300 font-mono text-xs">
                     {r.sku_number}
@@ -443,7 +564,7 @@ function TabCajas() {
   );
 }
 
-// --- Tab: Cartones pendientes por PO ---
+// --- Tab: Cartones pendientes ---
 function TabPendientes() {
   const [search, setSearch] = useState("");
   const [poSeleccionada, setPoSeleccionada] = useState(null);
@@ -468,14 +589,24 @@ function TabPendientes() {
 
   function handleExport() {
     if (!pendientes) return;
-    exportToExcel(
-      pendientes.cartones_pendientes.map((c) => ({
-        "Cartón ID": c.carton_id,
-        Tipo: c.tipo,
-        Estado: c.estado,
-      })),
-      `cartones-pendientes-${poSeleccionada.po_number}`,
-    );
+    const flat = [];
+    pendientes.cartones_pendientes.forEach((c) => {
+      (c.detalles || []).forEach((d) => {
+        flat.push({
+          "Cartón ID": c.carton_id,
+          Tipo: c.tipo,
+          "Estado Cartón": c.estado,
+          SKU: d.sku_number,
+          Producto: d.style_name,
+          Talla: d.size,
+          Color: d.color_name,
+          Esperado: d.cantidad_esperada,
+          Actual: d.cantidad_actual,
+          Faltan: d.cantidad_esperada - d.cantidad_actual,
+        });
+      });
+    });
+    exportToExcel(flat, `cartones-pendientes-${poSeleccionada.po_number}`);
   }
 
   return (
@@ -499,7 +630,7 @@ function TabPendientes() {
             onClick={handleExport}
             className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
           >
-            <Download size={14} /> Exportar
+            <Download size={14} /> Exportar detalle
           </Button>
         )}
       </div>
@@ -549,10 +680,10 @@ function TabPendientes() {
                     Tipo
                   </th>
                   <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    Estado
+                    Progreso
                   </th>
                   <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    SKUs
+                    Detalle SKUs
                   </th>
                 </tr>
               </thead>
@@ -570,7 +701,7 @@ function TabPendientes() {
                   (pendientes?.cartones_pendientes || []).map((c) => (
                     <tr
                       key={c.id}
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors align-top"
                     >
                       <td className="px-4 py-3 text-white font-mono text-xs">
                         {c.carton_id}
@@ -582,16 +713,240 @@ function TabPendientes() {
                           {c.tipo}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {c.estado}
+                      <td className="px-4 py-3 text-zinc-400 text-xs tabular-nums">
+                        {c.pares_escaneados}/{c.pares_esperados}
                       </td>
                       <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {c.detalles
-                          ?.map(
-                            (d) =>
-                              `${d.sku_number} (${d.cantidad_actual}/${d.cantidad_esperada})`,
-                          )
-                          .join(" · ")}
+                        <div className="space-y-1">
+                          {(c.detalles || []).map((d, i) => {
+                            const falta =
+                              d.cantidad_esperada - d.cantidad_actual;
+                            return (
+                              <div
+                                key={i}
+                                className="flex items-center gap-2 font-mono"
+                              >
+                                <span className="text-zinc-300">
+                                  {d.sku_number}
+                                </span>
+                                <span
+                                  className={
+                                    falta > 0
+                                      ? "text-amber-400"
+                                      : "text-emerald-400"
+                                  }
+                                >
+                                  {d.cantidad_actual}/{d.cantidad_esperada}
+                                </span>
+                                {falta > 0 && (
+                                  <span className="text-zinc-600">
+                                    (faltan {falta})
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Tab: Detalle PO-Cartón-QR ---
+function TabDetallePO() {
+  const [search, setSearch] = useState("");
+  const [poSeleccionada, setPoSeleccionada] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const debouncedSearch = useDebounce(search, 300);
+
+  const { data: posData } = useQuery({
+    queryKey: ["purchase-orders-detalle", debouncedSearch],
+    queryFn: () =>
+      getPurchaseOrders({
+        search: debouncedSearch,
+        estado: "",
+        limit: 20,
+      }).then((r) => r.data),
+  });
+
+  const { data: detalle, isLoading } = useQuery({
+    queryKey: ["detalle-po", poSeleccionada?.id],
+    queryFn: () =>
+      getDetalleCartonesPorPO(poSeleccionada.id).then((r) => r.data),
+    enabled: !!poSeleccionada,
+  });
+
+  async function handleExport() {
+    if (!detalle) return;
+    setExporting(true);
+    try {
+      exportToExcel(
+        detalle.detalles.map((r) => ({
+          PO: r.po_number,
+          "Cartón ID": r.carton_id,
+          "Tipo Cartón": r.carton_tipo,
+          "Estado Cartón": r.carton_estado,
+          "Código Caja": r.codigo_caja || "",
+          "Estado Caja": r.caja_estado || "",
+          SKU: r.sku_number || "",
+          "Style No": r.style_no || "",
+          Producto: r.style_name || "",
+          Talla: r.size || "",
+          Color: r.color || "",
+          "Nombre Color": r.color_name || "",
+          "Código QR": r.codigo_qr || "",
+          UPC: r.upc || "",
+          "Estado QR": r.qr_estado || "",
+          "Escaneado Por": r.escaneado_por || "",
+          "Fecha Escaneo": r.escaneado_at
+            ? new Date(r.escaneado_at).toLocaleString("es-MX")
+            : "",
+        })),
+        `detalle-${detalle.po.po_number}`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar PO..."
+            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
+          />
+        </div>
+        {poSeleccionada && (
+          <Button
+            size="sm"
+            onClick={handleExport}
+            disabled={!detalle?.total || exporting}
+            className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
+          >
+            <Download size={14} />
+            {exporting ? "Exportando..." : "Exportar Excel"}
+          </Button>
+        )}
+      </div>
+
+      {!poSeleccionada ? (
+        <div className="space-y-1.5">
+          {(posData?.data || []).map((po) => (
+            <button
+              key={po.id}
+              onClick={() => setPoSeleccionada(po)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] transition-colors text-left"
+            >
+              <span className="font-mono text-xs text-white font-medium flex-1">
+                {po.po_number}
+              </span>
+              <span className="text-zinc-500 text-xs">
+                {po.cantidad_pares} pares · {po.total_cartones} cartones
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPoSeleccionada(null)}
+              className="text-xs text-zinc-500 hover:text-white transition-colors"
+            >
+              ← Cambiar PO
+            </button>
+            <span className="text-zinc-700">·</span>
+            <span className="text-white font-mono text-xs font-medium">
+              {poSeleccionada.po_number}
+            </span>
+            <span className="text-zinc-600 text-xs ml-1">
+              {detalle?.total?.toLocaleString() || 0} filas
+            </span>
+          </div>
+          <div className="rounded-xl border border-white/5 overflow-hidden max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-950">
+                <tr className="border-b border-white/5 bg-white/[0.02]">
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    Cartón
+                  </th>
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    Caja
+                  </th>
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    SKU
+                  </th>
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    QR
+                  </th>
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    Operador
+                  </th>
+                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
+                    Fecha
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-zinc-600"
+                    >
+                      Cargando...
+                    </td>
+                  </tr>
+                ) : (detalle?.detalles || []).length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-zinc-600"
+                    >
+                      Sin escaneos registrados
+                    </td>
+                  </tr>
+                ) : (
+                  (detalle?.detalles || []).map((r, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-white/5 hover:bg-white/[0.02]"
+                    >
+                      <td className="px-3 py-2 text-white font-mono text-xs">
+                        {r.carton_id}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400 font-mono text-xs">
+                        {r.codigo_caja || "—"}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-300 font-mono text-xs">
+                        {r.sku_number}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400 font-mono text-[10px] break-all max-w-xs">
+                        {r.codigo_qr}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400 text-xs">
+                        {r.escaneado_por}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600 text-xs">
+                        {r.escaneado_at
+                          ? new Date(r.escaneado_at).toLocaleString("es-MX")
+                          : "—"}
                       </td>
                     </tr>
                   ))
@@ -731,14 +1086,20 @@ function TabEnviosT4() {
     exportToExcel(
       data.map((r) => ({
         "PO Number": r.po_number,
-        "Cantidad Pares": r.cantidad_pares,
+        "CFM XF Date": r.cfm_xf_date || "",
+        "Cant. Pares": r.cantidad_pares,
+        "Cant. Cartones": r.cantidad_cartones,
+        "QRs Asociados": r.qrs_asociados,
         Estado: r.estado,
         "Enviado At": r.enviado_at
           ? new Date(r.enviado_at).toLocaleString("es-MX")
-          : "—",
+          : "",
         "Cancelado At": r.cancelado_at
           ? new Date(r.cancelado_at).toLocaleString("es-MX")
-          : "—",
+          : "",
+        "Respuesta API": r.respuesta_success || "",
+        "Error Code": r.respuesta_error_code || "",
+        Mensaje: r.respuesta_mensaje || "",
         "Fecha Registro": new Date(r.created_at).toLocaleString("es-MX"),
       })),
       "historial-envios-t4",
@@ -769,32 +1130,38 @@ function TabEnviosT4() {
           <thead>
             <tr className="border-b border-white/5 bg-white/[0.02]">
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                PO Number
+                PO
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 Estado
               </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Enviado
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Cancelado
-              </th>
               <th className="text-right px-4 py-3 text-zinc-500 font-medium">
                 Pares
+              </th>
+              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
+                Cartones
+              </th>
+              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
+                QRs
+              </th>
+              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
+                Fecha
+              </th>
+              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
+                Respuesta T4
               </th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">
                   Cargando...
                 </td>
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">
                   Sin envíos registrados
                 </td>
               </tr>
@@ -802,10 +1169,15 @@ function TabEnviosT4() {
               data.map((r) => (
                 <tr
                   key={r.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors align-top"
                 >
                   <td className="px-4 py-3 text-white font-mono text-xs font-medium">
                     {r.po_number}
+                    {r.cfm_xf_date && (
+                      <div className="text-zinc-600 text-[10px] font-normal mt-0.5">
+                        XF: {r.cfm_xf_date}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -814,18 +1186,47 @@ function TabEnviosT4() {
                       {r.estado}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
+                    {Number(r.cantidad_pares).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right text-zinc-400 tabular-nums">
+                    {r.cantidad_cartones}
+                  </td>
+                  <td className="px-4 py-3 text-right text-emerald-400 tabular-nums">
+                    {Number(r.qrs_asociados || 0).toLocaleString()}
+                  </td>
                   <td className="px-4 py-3 text-zinc-400 text-xs">
                     {r.enviado_at
                       ? new Date(r.enviado_at).toLocaleString("es-MX")
-                      : "—"}
+                      : r.cancelado_at
+                        ? new Date(r.cancelado_at).toLocaleString("es-MX")
+                        : new Date(r.created_at).toLocaleString("es-MX")}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs">
-                    {r.cancelado_at
-                      ? new Date(r.cancelado_at).toLocaleString("es-MX")
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
-                    {Number(r.cantidad_pares).toLocaleString()}
+                  <td className="px-4 py-3 text-xs max-w-xs">
+                    {r.respuesta_success && (
+                      <div
+                        className={
+                          String(r.respuesta_success).toLowerCase() === "true"
+                            ? "text-emerald-400"
+                            : "text-red-400"
+                        }
+                      >
+                        {r.respuesta_success}
+                      </div>
+                    )}
+                    {r.respuesta_error_code && (
+                      <div className="text-red-400 font-mono text-[10px]">
+                        {r.respuesta_error_code}
+                      </div>
+                    )}
+                    {r.respuesta_mensaje && (
+                      <div
+                        className="text-zinc-500 text-[10px] truncate"
+                        title={r.respuesta_mensaje}
+                      >
+                        {r.respuesta_mensaje}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
@@ -846,6 +1247,7 @@ export default function ReportesPage() {
     trazabilidad: <TabTrazabilidad />,
     cajas: <TabCajas />,
     pendientes: <TabPendientes />,
+    "detalle-po": <TabDetallePO />,
     "sin-sku": <TabQRsSinSKU />,
     envios: <TabEnviosT4 />,
   };
@@ -857,7 +1259,6 @@ export default function ReportesPage() {
         description="Análisis y trazabilidad del sistema"
       />
 
-      {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 border-b border-white/5 overflow-x-auto">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
