@@ -1,6 +1,8 @@
 import api from "./axios";
 
 export const getCartonesPorPO = (po_id) => api.get(`/embarque/po/${po_id}`);
+export const getResumenPOEmbarque = (po_id) =>
+  api.get(`/embarque/po/${po_id}/resumen`);
 export const getCarton = (id) => api.get(`/embarque/${id}`);
 export const getProgresoMusical = (id) =>
   api.get(`/embarque/${id}/progreso-musical`);

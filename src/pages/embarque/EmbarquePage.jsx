@@ -5,6 +5,7 @@ import {
   asignarCaja,
   reasociarQR,
   getProgresoMusical,
+  getResumenPOEmbarque,
 } from "@/api/embarque";
 import { getCajas } from "@/api/cajas";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,8 @@ import {
   Package,
   RotateCcw,
   ScanLine,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import * as Tone from "tone";
 
@@ -23,6 +26,135 @@ function getModoEscaneo(carton) {
   const total =
     carton.detalles?.reduce((s, d) => s + d.cantidad_esperada, 0) || 0;
   return carton.tipo === "mono_sku" && total < 12 ? "qr" : "caja";
+}
+
+function ResumenPOPanel({ resumen, cartonActivoId }) {
+  const {
+    po,
+    total_cartones,
+    completos,
+    pendientes,
+    cartones_en_proceso = [],
+    cartones_sin_iniciar = [],
+  } = resumen;
+  const pct =
+    total_cartones > 0 ? Math.round((completos / total_cartones) * 100) : 0;
+
+  const pocosQuedan = pendientes > 0 && pendientes <= 5;
+  const hayEnProceso = cartones_en_proceso.length > 0;
+
+  let headerColor = "bg-gray-900";
+  let textColor = "text-white";
+  if (pendientes === 0) headerColor = "bg-green-600";
+  else if (pocosQuedan) headerColor = "bg-orange-500";
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className={`${headerColor} ${textColor} px-5 py-3 flex items-center justify-between`}>
+        <div className="flex items-center gap-2">
+          <Package size={16} />
+          <span className="text-xs font-bold uppercase tracking-wider opacity-80">
+            PO
+          </span>
+          <span className="font-mono text-sm font-bold">{po.po_number}</span>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          {pocosQuedan && pendientes > 0 && (
+            <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+              <AlertTriangle size={12} /> Ya casi
+            </span>
+          )}
+          <span className="tabular-nums font-bold">
+            {completos}/{total_cartones}
+          </span>
+          <span className="text-xs opacity-70">cartones</span>
+        </div>
+      </div>
+
+      <div className="px-5 py-3">
+        <div className="h-2 rounded-full bg-gray-100 overflow-hidden mb-3">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${pendientes === 0 ? "bg-green-500" : pocosQuedan ? "bg-orange-400" : "bg-gray-900"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        {hayEnProceso && (
+          <div className="mb-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Clock size={12} className="text-amber-500" />
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                En proceso ({cartones_en_proceso.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {cartones_en_proceso.map((c) => {
+                const pctC =
+                  c.pares_esperados > 0
+                    ? Math.round(
+                        (parseInt(c.pares_escaneados) / parseInt(c.pares_esperados)) * 100,
+                      )
+                    : 0;
+                const esActivo = c.id === cartonActivoId;
+                return (
+                  <span
+                    key={c.id}
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono ${
+                      esActivo
+                        ? "bg-amber-100 border border-amber-400 text-amber-700 font-bold"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {c.carton_id}
+                    <span className="text-[10px] tabular-nums opacity-70">
+                      {c.pares_escaneados}/{c.pares_esperados} ({pctC}%)
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {pocosQuedan && cartones_sin_iniciar.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Sin iniciar ({cartones_sin_iniciar.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {cartones_sin_iniciar.map((c) => (
+                <span
+                  key={c.id}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono bg-gray-100 text-gray-600"
+                >
+                  {c.carton_id}
+                  {c.tipo === "musical" && (
+                    <span className="text-[10px] opacity-60">🎵</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!pocosQuedan && cartones_sin_iniciar.length > 0 && (
+          <div className="text-xs text-gray-400">
+            +{cartones_sin_iniciar.length} cartones sin iniciar
+          </div>
+        )}
+
+        {pendientes === 0 && (
+          <div className="text-center py-2">
+            <span className="text-green-600 font-bold text-sm">
+              ✓ Todos los cartones completos
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function useSound() {
@@ -137,6 +269,13 @@ export default function EmbarquePage() {
     enabled: !!cartonActivo && modoEscaneo === "qr",
   });
 
+  const { data: resumenPO, refetch: refetchResumenPO } = useQuery({
+    queryKey: ["resumen-po-embarque", cartonActivo?.po_id],
+    queryFn: () =>
+      getResumenPOEmbarque(cartonActivo.po_id).then((r) => r.data),
+    enabled: !!cartonActivo?.po_id,
+  });
+
   const { data: cajas = [] } = useQuery({
     queryKey: ["cajas-empacadas"],
     queryFn: () => getCajas({ estado: "empacada" }).then((r) => r.data),
@@ -191,6 +330,7 @@ export default function EmbarquePage() {
       triggerFlash("complete");
       setLastScan({ ok: true, completa: true, msg: "¡CARTÓN COMPLETO!" });
       qc.invalidateQueries(["cajas-empacadas"]);
+      refetchResumenPO();
       setTimeout(() => {
         setCartonActivo(null);
         setLastScan(null);
@@ -227,6 +367,7 @@ export default function EmbarquePage() {
           },
           ...prev.slice(0, 49),
         ]);
+        refetchResumenPO();
         setTimeout(() => {
           setCartonActivo(null);
           setLastScan(null);
@@ -448,6 +589,11 @@ export default function EmbarquePage() {
                   : "Escanea QRs del cartón"}
             </p>
           </div>
+        )}
+
+        {/* Resumen PO */}
+        {cartonActivo && resumenPO && (
+          <ResumenPOPanel resumen={resumenPO} cartonActivoId={cartonActivo.id} />
         )}
 
         {/* Info cartón activo */}
