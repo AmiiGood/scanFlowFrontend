@@ -140,6 +140,14 @@ function TabProduccion() {
 }
 
 // --- Tab: Trazabilidad QR ---
+function normalizarQR(raw) {
+  return raw
+    .trim()
+    .replace(/\u00d1/g, ":")
+    .replace(/-{2,}/g, "//")
+    .replace(/-/g, "/");
+}
+
 function TabTrazabilidad() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -152,7 +160,7 @@ function TabTrazabilidad() {
 
   function handleSearch(e) {
     e.preventDefault();
-    setQuery(search.trim());
+    setQuery(normalizarQR(search));
   }
 
   return (
@@ -165,10 +173,33 @@ function TabTrazabilidad() {
           />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pega o escanea el código QR (URL completa o solo el código)..."
+            onChange={(e) => {
+              const v = e.target.value;
+              // Auto-submit cuando el escaner termina (mete \n o \r al final)
+              if (/[\r\n]$/.test(v)) {
+                const clean = normalizarQR(v);
+                setSearch(clean);
+                setQuery(clean);
+              } else {
+                setSearch(v);
+              }
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const pasted = e.clipboardData.getData("text");
+              const clean = normalizarQR(pasted);
+              setSearch(clean);
+              setQuery(clean);
+            }}
+            placeholder="Escanea o pega el QR (URL, escaneado o solo el código)..."
             className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9 font-mono text-xs"
+            autoFocus
           />
+          {search && search !== query && (
+            <p className="text-[10px] text-zinc-600 mt-1 font-mono">
+              Se buscará: {normalizarQR(search)}
+            </p>
+          )}
         </div>
         <Button
           type="submit"
@@ -177,6 +208,20 @@ function TabTrazabilidad() {
         >
           Buscar
         </Button>
+        {query && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSearch("");
+              setQuery("");
+            }}
+            className="border-white/10 text-zinc-400 hover:bg-white/5"
+          >
+            Limpiar
+          </Button>
+        )}
       </form>
 
       {isLoading && <p className="text-zinc-600 text-sm">Buscando...</p>}
