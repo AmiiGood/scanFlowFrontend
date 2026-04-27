@@ -7,7 +7,7 @@ import {
   getProgresoMusical,
   getResumenPOEmbarque,
 } from "@/api/embarque";
-import { getCajas } from "@/api/cajas";
+import { buscarCajaPorCodigo } from "@/api/cajas";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle2,
@@ -276,12 +276,6 @@ export default function EmbarquePage() {
     enabled: !!cartonActivo?.po_id,
   });
 
-  const { data: cajas = [] } = useQuery({
-    queryKey: ["cajas-empacadas"],
-    queryFn: () => getCajas({ estado: "empacada" }).then((r) => r.data),
-    enabled: !!cartonActivo && modoEscaneo === "caja",
-  });
-
   // Buscar cartón al escanear
   const buscarCartonMut = useMutation({
     mutationFn: (codigo) => getCartonByCodigo(codigo),
@@ -320,6 +314,37 @@ export default function EmbarquePage() {
         msg: e.response?.data?.error || "Cartón no encontrado",
       });
       setCodigoCarton("");
+    },
+  });
+
+  const buscarCajaMut = useMutation({
+    mutationFn: (codigo) => buscarCajaPorCodigo(codigo),
+    onSuccess: (res) => {
+      const caja = res.data;
+      if (caja.estado !== "empacada") {
+        beepError();
+        triggerFlash("error");
+        setLastScan({ ok: false, msg: "La caja no está empacada" });
+        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        return;
+      }
+      if (caja.carton_id) {
+        beepError();
+        triggerFlash("error");
+        setLastScan({ ok: false, msg: "Caja ya asignada a otro cartón" });
+        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        return;
+      }
+      asignarMut.mutate(caja.id);
+    },
+    onError: (e) => {
+      beepError();
+      triggerFlash("error");
+      setLastScan({
+        ok: false,
+        msg: e.response?.data?.error || "Caja no encontrada",
+      });
+      setTimeout(() => cajaInputRef.current?.focus(), 50);
     },
   });
 
@@ -431,16 +456,8 @@ export default function EmbarquePage() {
     if (e.target.value.trim()) {
       scanTimer.current = setTimeout(() => {
         const codigoNormalizado = normalizarCodigo(e.target.value.trim());
-        const caja = cajas.find((c) => c.codigo_caja === codigoNormalizado);
-        if (caja) {
-          asignarMut.mutate(caja.id);
-          setCodigoCaja("");
-        } else {
-          beepError();
-          triggerFlash("error");
-          setLastScan({ ok: false, msg: "Caja no encontrada o no empacada" });
-          setCodigoCaja("");
-        }
+        buscarCajaMut.mutate(codigoNormalizado);
+        setCodigoCaja("");
       }, 150);
     }
   }
@@ -750,18 +767,8 @@ export default function EmbarquePage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && codigoCaja.trim()) {
                   clearTimeout(scanTimer.current);
-                  const caja = cajas.find(
-                    (c) => c.codigo_caja === normalizarCodigo(codigoCaja.trim()),
-                  );
-                  if (caja) {
-                    asignarMut.mutate(caja.id);
-                    setCodigoCaja("");
-                  } else {
-                    beepError();
-                    triggerFlash("error");
-                    setLastScan({ ok: false, msg: "Caja no encontrada" });
-                    setCodigoCaja("");
-                  }
+                  buscarCajaMut.mutate(normalizarCodigo(codigoCaja.trim()));
+                  setCodigoCaja("");
                 }
               }}
               placeholder="Escanea la caja empacada..."
