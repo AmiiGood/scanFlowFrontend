@@ -447,7 +447,7 @@ export default function EmbarquePage() {
   }
 
   function normalizarCodigo(codigo) {
-    return codigo.replace(/['{]/g, "-");
+    return codigo.replace(/['{]/g, "-").toUpperCase();
   }
 
   function handleCajaChange(e) {

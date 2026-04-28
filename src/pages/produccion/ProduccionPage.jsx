@@ -210,7 +210,7 @@ export default function ProduccionPage() {
   function handleCajaSubmit(e) {
     e.preventDefault();
     if (!codigoCaja.trim()) return;
-    iniciarMut.mutate(codigoCaja.trim());
+    iniciarMut.mutate(codigoCaja.trim().toUpperCase());
   }
 
   function handleQRSubmit(e) {
@@ -224,7 +224,7 @@ export default function ProduccionPage() {
     clearTimeout(cajaTimer.current);
     if (e.target.value.trim()) {
       cajaTimer.current = setTimeout(() => {
-        if (!cajaActiva) iniciarMut.mutate(e.target.value.trim());
+        if (!cajaActiva) iniciarMut.mutate(e.target.value.trim().toUpperCase());
       }, 150);
     }
   }
