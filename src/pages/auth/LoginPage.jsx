@@ -21,6 +21,7 @@ export default function LoginPage() {
     if (user) {
       if (user.rol === "operador_produccion") navigate("/produccion", { replace: true });
       else if (user.rol === "operador_embarque") navigate("/embarque", { replace: true });
+      else if (user.rol === "operador_po") navigate("/admin/purchase-orders", { replace: true });
       else navigate("/admin", { replace: true });
     }
   }, [user]);
@@ -33,6 +34,7 @@ export default function LoginPage() {
       const u = await login(email, password);
       if (u.rol === "operador_produccion") navigate("/produccion");
       else if (u.rol === "operador_embarque") navigate("/embarque");
+      else if (u.rol === "operador_po") navigate("/admin/purchase-orders");
       else navigate("/admin");
     } catch (err) {
       setError(err.response?.data?.error || "Error al iniciar sesión");

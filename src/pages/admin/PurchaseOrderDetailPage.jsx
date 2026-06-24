@@ -7,6 +7,7 @@ import {
   cancelarPO,
   historialEnvios,
 } from "@/api/purchaseOrders";
+import { useAuth } from "@/hooks/useAuth";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ export default function PurchaseOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [confirmModal, setConfirmModal] = useState(null); // 'enviar' | 'cancelar'
   const [historialOpen, setHistorialOpen] = useState(false);
   const [expandedCarton, setExpandedCarton] = useState(null);
@@ -95,7 +97,7 @@ export default function PurchaseOrderDetailPage() {
     (po.estado === "pendiente" &&
       cartonesCompletos === totalCartones &&
       totalCartones > 0);
-  const puedeCancelar = po.estado === "enviado";
+  const puedeCancelar = po.estado === "enviado" && user?.rol === "superadmin";
 
   return (
     <div className="p-8 max-w-5xl">

@@ -24,12 +24,14 @@ const ROL_LABELS = {
   superadmin: "Administrador",
   operador_produccion: "Producción",
   operador_embarque: "Embarque",
+  operador_po: "Operador PO",
 };
 
 const ROL_COLORS = {
   superadmin: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   operador_produccion: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   operador_embarque: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  operador_po: "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
 const EMPTY_FORM = {
@@ -321,6 +323,9 @@ export default function UsuariosPage() {
                 </option>
                 <option value="operador_embarque" className="bg-zinc-900">
                   Embarque
+                </option>
+                <option value="operador_po" className="bg-zinc-900">
+                  Operador PO
                 </option>
                 <option value="superadmin" className="bg-zinc-900">
                   Administrador

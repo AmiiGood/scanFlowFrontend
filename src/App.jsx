@@ -87,7 +87,7 @@ export default function App() {
       <Route
         path="/admin/purchase-orders"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute roles={["superadmin", "operador_po"]}>
             <AppLayout>
               <PurchaseOrdersPage />
             </AppLayout>
@@ -97,7 +97,7 @@ export default function App() {
       <Route
         path="/admin/purchase-orders/:id"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute roles={["superadmin", "operador_po"]}>
             <AppLayout>
               <PurchaseOrderDetailPage />
             </AppLayout>
@@ -117,7 +117,7 @@ export default function App() {
       <Route
         path="/admin/reportes"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute roles={["superadmin", "operador_po"]}>
             <AppLayout>
               <ReportesPage />
             </AppLayout>

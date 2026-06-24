@@ -20,6 +20,10 @@ const navByRole = {
     { to: "/produccion", icon: PackageOpen, label: "Producción" },
   ],
   operador_embarque: [{ to: "/embarque", icon: Truck, label: "Embarque" }],
+  operador_po: [
+    { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders" },
+    { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
+  ],
   superadmin: [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/admin/usuarios", icon: Users, label: "Usuarios" },
@@ -39,6 +43,7 @@ export default function Sidebar() {
   const rolLabel = {
     operador_produccion: "Producción",
     operador_embarque: "Embarque",
+    operador_po: "Operador PO",
     superadmin: "Administrador",
   };
 
