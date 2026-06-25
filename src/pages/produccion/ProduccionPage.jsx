@@ -6,8 +6,17 @@ import {
   escanearQR,
   getProgresoCaja,
 } from "@/api/cajas";
+import { getConfig } from "@/api/config";
+import { useLockStore } from "@/store/lockStore";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Box, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import {
+  ScanLine,
+  Box,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  Lock,
+} from "lucide-react";
 import * as Tone from "tone";
 
 function useSound() {
@@ -107,6 +116,38 @@ export default function ProduccionPage() {
     queryFn: () => getProgresoCaja(cajaActiva.id).then((r) => r.data),
     enabled: !!cajaActiva,
   });
+
+  // Configuración de bloqueo. Se refresca periódicamente para que, si un admin
+  // apaga el bloqueo, las pantallas atascadas se liberen sin recargar.
+  const { data: config } = useQuery({
+    queryKey: ["config"],
+    queryFn: () => getConfig().then((r) => r.data),
+    refetchInterval: 15000,
+    staleTime: 0,
+  });
+
+  const bloqueoActivo = config?.bloqueo_caja_produccion === "true";
+  // Hay caja en proceso = caja activa sin terminar (al completar, cajaActiva pasa a null).
+  const bloqueado = bloqueoActivo && !!cajaActiva;
+
+  const setLocked = useLockStore((s) => s.setLocked);
+
+  // Activar/desactivar el bloqueo global (consumido por el Sidebar).
+  useEffect(() => {
+    setLocked(bloqueado);
+    return () => setLocked(false);
+  }, [bloqueado, setLocked]);
+
+  // Bloquear cierre/recarga del navegador mientras hay una caja en proceso.
+  useEffect(() => {
+    if (!bloqueado) return;
+    function handleBeforeUnload(e) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [bloqueado]);
 
   const iniciarMut = useMutation({
     mutationFn: iniciarCaja,
@@ -318,14 +359,19 @@ export default function ProduccionPage() {
             Producción
           </span>
         </div>
-        {cajaActiva && (
-          <button
-            onClick={resetCaja}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors font-medium"
-          >
-            <RotateCcw size={14} /> Cancelar caja
-          </button>
-        )}
+        {cajaActiva &&
+          (bloqueado ? (
+            <span className="flex items-center gap-1.5 text-sm text-amber-600 font-semibold">
+              <Lock size={14} /> Caja bloqueada hasta completar
+            </span>
+          ) : (
+            <button
+              onClick={resetCaja}
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors font-medium"
+            >
+              <RotateCcw size={14} /> Cancelar caja
+            </button>
+          ))}
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-6 space-y-5">

@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useLockStore } from "@/store/lockStore";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -13,6 +14,8 @@ import {
   ChevronRight,
   Database,
   Trash2,
+  Settings,
+  Lock,
 } from "lucide-react";
 
 const navByRole = {
@@ -33,11 +36,13 @@ const navByRole = {
     { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
     { to: "/admin/backup", icon: Database, label: "Backup" },
     { to: "/admin/reset", icon: Trash2, label: "Reset" },
+    { to: "/admin/configuracion", icon: Settings, label: "Configuración" },
   ],
 };
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const locked = useLockStore((s) => s.locked);
   const nav = navByRole[user?.rol] || [];
 
   const rolLabel = {
@@ -102,6 +107,16 @@ export default function Sidebar() {
         </span>
       </div>
 
+      {/* Aviso de bloqueo */}
+      {locked && (
+        <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <Lock size={13} className="text-amber-400 shrink-0" />
+          <span className="text-[11px] text-amber-300 leading-tight">
+            Caja en proceso · navegación bloqueada
+          </span>
+        </div>
+      )}
+
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {nav.map(({ to, icon: Icon, label }) => (
@@ -109,9 +124,13 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={to === "/admin"}
+            tabIndex={locked ? -1 : undefined}
+            aria-disabled={locked}
+            onClick={(e) => locked && e.preventDefault()}
             className={({ isActive }) =>
               cn(
                 "group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                locked && "pointer-events-none opacity-30",
                 isActive
                   ? "bg-white/10 text-white font-medium"
                   : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
@@ -158,7 +177,8 @@ export default function Sidebar() {
 
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-red-400/5 transition-colors"
+          disabled={locked}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-red-400/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
         >
           <LogOut size={16} />
           <span>Cerrar sesión</span>

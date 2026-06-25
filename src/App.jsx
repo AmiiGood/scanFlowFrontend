@@ -12,6 +12,7 @@ import QRImportPage from "@/pages/admin/QRImportPage";
 import ReportesPage from "@/pages/admin/ReportesPage";
 import BackupPage from "@/pages/admin/BackupPage";
 import ResetPage from "@/pages/admin/ResetPage";
+import ConfiguracionPage from "@/pages/admin/ConfiguracionPage";
 
 import ProduccionPage from "@/pages/produccion/ProduccionPage";
 
@@ -141,6 +142,16 @@ export default function App() {
           <ProtectedRoute roles={["superadmin"]}>
             <AppLayout>
               <ResetPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/configuracion"
+        element={
+          <ProtectedRoute roles={["superadmin"]}>
+            <AppLayout>
+              <ConfiguracionPage />
             </AppLayout>
           </ProtectedRoute>
         }
