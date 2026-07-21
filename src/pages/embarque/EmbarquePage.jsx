@@ -350,16 +350,30 @@ export default function EmbarquePage() {
 
   const asignarMut = useMutation({
     mutationFn: (caja_id) => asignarCaja(cartonActivo.id, caja_id),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      const data = res.data || {};
+      const paresRestantes =
+        data.modo === "split" ? (data.pares_restantes ?? 0) : 0;
       beepComplete();
       triggerFlash("complete");
-      setLastScan({ ok: true, completa: true, msg: "¡CARTÓN COMPLETO!" });
+      setLastScan({
+        ok: true,
+        completa: true,
+        msg: "¡CARTÓN COMPLETO!",
+        avisoCaja:
+          paresRestantes > 0
+            ? `Quedan ${paresRestantes} pares en esta caja — escanéala en el siguiente cartón`
+            : null,
+      });
       qc.invalidateQueries(["cajas-empacadas"]);
       refetchResumenPO();
-      setTimeout(() => {
-        setCartonActivo(null);
-        setLastScan(null);
-      }, 2500);
+      setTimeout(
+        () => {
+          setCartonActivo(null);
+          setLastScan(null);
+        },
+        paresRestantes > 0 ? 4000 : 2500,
+      );
     },
     onError: (e) => {
       beepError();
@@ -569,9 +583,18 @@ export default function EmbarquePage() {
             <p className="text-5xl font-black text-green-600 tracking-tight">
               ¡CARTÓN COMPLETO!
             </p>
-            <p className="text-gray-400 mt-2 text-lg font-medium">
-              Escanea el siguiente cartón
-            </p>
+            {lastScan.avisoCaja ? (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-100 border-2 border-amber-400 px-4 py-2.5 text-amber-700">
+                <AlertTriangle size={20} className="shrink-0" />
+                <span className="text-base font-bold">
+                  {lastScan.avisoCaja}
+                </span>
+              </div>
+            ) : (
+              <p className="text-gray-400 mt-2 text-lg font-medium">
+                Escanea el siguiente cartón
+              </p>
+            )}
           </div>
         ) : lastScan ? (
           <div
