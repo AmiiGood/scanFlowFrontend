@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   getProduccionPorDia,
@@ -8,34 +9,44 @@ import {
   getHistorialEnviosT4,
   getCartonesPendientesPorPO,
   getDetalleCartonesPorPO,
+  getPOsReporte,
+  getDetalleCajas,
 } from "@/api/reports";
-import { getPurchaseOrders } from "@/api/purchaseOrders";
-import PageHeader from "@/components/layout/PageHeader";
-import Paginator from "@/components/ui/Paginator";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
+import { cn } from "@/lib/utils";
+import { ArrowLeft, Search, X } from "lucide-react";
 import {
-  BarChart2,
-  Search,
-  Download,
-  Package,
-  QrCode,
-  Send,
-  Activity,
-  Layers,
-} from "lucide-react";
+  BarraAvance,
+  Boton,
+  BotonExportar,
+  Campo,
+  Estado,
+  FilaMensaje,
+  PageTitle,
+  Paginacion,
+  Panel,
+  Tabla,
+} from "@/components/reportes/kit";
+import { GraficaBarras, Leyenda } from "@/components/reportes/graficas";
+import { COLOR, inputCls, td, tdMono, tdNum, th, thNum } from "@/components/reportes/estilos";
+import { fmtFecha, fmtFechaHora, fmtNum } from "@/lib/formato";
 
 const TABS = [
-  { id: "produccion", label: "Producción por día", icon: Activity },
-  { id: "trazabilidad", label: "Trazabilidad QR", icon: QrCode },
-  { id: "cajas", label: "Cajas por SKU", icon: Package },
-  { id: "pendientes", label: "Cartones pendientes", icon: BarChart2 },
-  { id: "detalle-po", label: "Detalle PO-Cartón-QR", icon: Layers },
-  { id: "sin-sku", label: "QRs sin SKU", icon: QrCode },
-  { id: "envios", label: "Historial T4", icon: Send },
+  { id: "produccion", label: "Producción por día" },
+  { id: "trazabilidad", label: "Trazabilidad QR" },
+  { id: "cajas", label: "Cajas por SKU" },
+  { id: "pendientes", label: "Cartones pendientes" },
+  { id: "detalle-po", label: "Detalle PO-Cartón-QR" },
+  { id: "detalle-cajas", label: "Detalle Caja-QR" },
+  { id: "sin-sku", label: "QRs sin SKU" },
+  { id: "envios", label: "Historial T4" },
 ];
+
+// Mantiene la página anterior visible mientras llega la siguiente.
+const conservar = (prev) => prev;
+
+const selectCls = cn(inputCls, "w-auto pr-8");
 
 // --- Tab: Producción por día ---
 function TabProduccion() {
@@ -45,13 +56,26 @@ function TabProduccion() {
     queryFn: () => getProduccionPorDia(dias).then((r) => r.data),
   });
 
+  const serie = [...data].reverse().map((r) => ({
+    fecha: r.fecha,
+    pares: +r.qrs_escaneados,
+    abiertas: +r.cajas_abiertas,
+    cerradas: +r.cajas_cerradas,
+  }));
+  const total = serie.reduce(
+    (a, r) => ({ pares: a.pares + r.pares, abiertas: a.abiertas + r.abiertas, cerradas: a.cerradas + r.cerradas }),
+    { pares: 0, abiertas: 0, cerradas: 0 },
+  );
+  const corta = (f) => fmtFecha(f).slice(0, 5);
+
   function handleExport() {
     exportToExcel(
       data.map((r) => ({
-        Fecha: r.fecha,
-        "QRs Escaneados": r.qrs_escaneados,
-        "Cajas Trabajadas": r.cajas_trabajadas,
-        "Operadores Activos": r.operadores_activos,
+        Fecha: fmtFecha(r.fecha),
+        "QRs Escaneados": Number(r.qrs_escaneados),
+        "Cajas Abiertas": Number(r.cajas_abiertas),
+        "Cajas Cerradas": Number(r.cajas_cerradas),
+        "Operadores Activos": Number(r.operadores_activos),
       })),
       `produccion-por-dia-${dias}d`,
     );
@@ -60,81 +84,78 @@ function TabProduccion() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <select
-          value={dias}
-          onChange={(e) => setDias(parseInt(e.target.value))}
-          className="h-9 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 focus:outline-none focus:ring-1 focus:ring-white/20"
-        >
+        <select value={dias} onChange={(e) => setDias(parseInt(e.target.value))} className={selectCls}>
           {[7, 15, 30, 60, 90].map((d) => (
-            <option key={d} value={d} className="bg-zinc-900">
-              {d} días
-            </option>
+            <option key={d} value={d}>Últimos {d} días</option>
           ))}
         </select>
-        <Button
-          size="sm"
-          onClick={handleExport}
-          disabled={!data.length}
-          className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
-        >
-          <Download size={14} /> Exportar Excel
-        </Button>
+        <p className="text-sm text-zinc-500 tabular-nums">
+          {fmtNum(total.pares)} pares · {fmtNum(total.abiertas)} cajas abiertas · {fmtNum(total.cerradas)} cerradas
+        </p>
+        <div className="ml-auto">
+          <BotonExportar onClick={handleExport} disabled={!data.length} />
+        </div>
       </div>
-      <div className="rounded-xl border border-white/5 overflow-hidden">
-        <table className="w-full text-sm">
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Panel title="Pares escaneados por día">
+          <GraficaBarras
+            data={serie}
+            x="fecha"
+            barras={[{ key: "pares", label: "Pares", color: COLOR.principal }]}
+            etiquetaX={corta}
+            etiquetaGlobo={fmtFecha}
+          />
+        </Panel>
+        <Panel
+          title="Cajas abiertas y cerradas por día"
+          actions={
+            <Leyenda items={[{ label: "Abiertas", color: COLOR.claro }, { label: "Cerradas", color: COLOR.principal }]} />
+          }
+        >
+          <GraficaBarras
+            data={serie}
+            x="fecha"
+            barras={[
+              { key: "abiertas", label: "Abiertas", color: COLOR.claro },
+              { key: "cerradas", label: "Cerradas", color: COLOR.principal },
+            ]}
+            etiquetaX={corta}
+            etiquetaGlobo={fmtFecha}
+          />
+        </Panel>
+      </div>
+
+      <Panel flush>
+        <Tabla>
           <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Fecha
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                QRs escaneados
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Cajas trabajadas
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Operadores activos
-              </th>
+            <tr>
+              <th className={th}>Fecha</th>
+              <th className={thNum}>QRs escaneados</th>
+              <th className={thNum}>Cajas abiertas</th>
+              <th className={thNum}>Cajas cerradas</th>
+              <th className={thNum}>Operadores activos</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-600">
-                  Cargando...
-                </td>
-              </tr>
+              <FilaMensaje cols={5}>Cargando…</FilaMensaje>
             ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-600">
-                  Sin datos
-                </td>
-              </tr>
+              <FilaMensaje cols={5}>Sin producción en este periodo</FilaMensaje>
             ) : (
-              data.map((r, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                >
-                  <td className="px-4 py-3 text-white font-mono text-xs">
-                    {new Date(r.fecha).toLocaleDateString("es-MX")}
-                  </td>
-                  <td className="px-4 py-3 text-right text-emerald-400 font-semibold tabular-nums">
-                    {Number(r.qrs_escaneados).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right text-blue-400 tabular-nums">
-                    {r.cajas_trabajadas}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-400 tabular-nums">
-                    {r.operadores_activos}
-                  </td>
+              data.map((r) => (
+                <tr key={r.fecha} className="hover:bg-zinc-50">
+                  <td className={cn(td, "tabular-nums text-zinc-900")}>{fmtFecha(r.fecha)}</td>
+                  <td className={cn(tdNum, "font-medium text-zinc-900")}>{fmtNum(r.qrs_escaneados)}</td>
+                  <td className={tdNum}>{fmtNum(r.cajas_abiertas)}</td>
+                  <td className={tdNum}>{fmtNum(r.cajas_cerradas)}</td>
+                  <td className={tdNum}>{fmtNum(r.operadores_activos)}</td>
                 </tr>
               ))
             )}
           </tbody>
-        </table>
-      </div>
+        </Tabla>
+      </Panel>
     </div>
   );
 }
@@ -143,9 +164,18 @@ function TabProduccion() {
 function normalizarQR(raw) {
   return raw
     .trim()
-    .replace(/\u00d1/g, ":")
+    .replace(/Ñ/g, ":")
     .replace(/-{2,}/g, "//")
     .replace(/-/g, "/");
+}
+
+function Dato({ label, children, mono }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-zinc-500">{label}</dt>
+      <dd className={cn("text-sm text-zinc-900 mt-0.5", mono && "font-mono text-xs break-all")}>{children || "—"}</dd>
+    </div>
+  );
 }
 
 function TabTrazabilidad() {
@@ -158,233 +188,137 @@ function TabTrazabilidad() {
     enabled: !!query,
   });
 
-  function handleSearch(e) {
-    e.preventDefault();
-    setQuery(normalizarQR(search));
+  function buscar(valor) {
+    const limpio = normalizarQR(valor);
+    setSearch(limpio);
+    setQuery(limpio);
   }
+
+  const cadena = data
+    ? [
+        { paso: "Escaneo en Producción", valor: data.escaneado_por, detalle: data.escaneado_at && <span className="text-xs text-zinc-500">{new Date(data.escaneado_at).toLocaleString("es-MX")}</span> },
+        { paso: "Caja", valor: data.codigo_caja || "Directo a cartón", detalle: data.caja_estado && <Estado valor={data.caja_estado} /> },
+        { paso: "Cartón", valor: data.carton_id, detalle: data.carton_tipo && (<span className="flex gap-1.5"><Estado valor={data.carton_tipo} /><Estado valor={data.carton_estado} /></span>) },
+        { paso: "Purchase order", valor: data.po_number, detalle: data.po_estado && (<span className="flex items-center gap-1.5"><Estado valor={data.po_estado} />{data.cfm_xf_date && <span className="text-xs text-zinc-500">XF {fmtFecha(data.cfm_xf_date)}</span>}</span>) },
+      ]
+    : [];
 
   return (
     <div className="space-y-4">
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="relative flex-1 max-w-lg">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-          <Input
-            value={search}
-            onChange={(e) => {
-              const v = e.target.value;
-              // Auto-submit cuando el escaner termina (mete \n o \r al final)
-              if (/[\r\n]$/.test(v)) {
-                const clean = normalizarQR(v);
-                setSearch(clean);
-                setQuery(clean);
-              } else {
-                setSearch(v);
-              }
-            }}
-            onPaste={(e) => {
-              e.preventDefault();
-              const pasted = e.clipboardData.getData("text");
-              const clean = normalizarQR(pasted);
-              setSearch(clean);
-              setQuery(clean);
-            }}
-            placeholder="Escanea o pega el QR (URL, escaneado o solo el código)..."
-            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9 font-mono text-xs"
-            autoFocus
-          />
-          {search && search !== query && (
-            <p className="text-[10px] text-zinc-600 mt-1 font-mono">
-              Se buscará: {normalizarQR(search)}
-            </p>
-          )}
-        </div>
-        <Button
-          type="submit"
-          size="sm"
-          className="bg-white text-zinc-950 hover:bg-zinc-100"
+      <Panel>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            buscar(search);
+          }}
+          className="flex flex-wrap items-end gap-3 pt-5"
         >
-          Buscar
-        </Button>
-        {query && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setSearch("");
-              setQuery("");
-            }}
-            className="border-white/10 text-zinc-400 hover:bg-white/5"
-          >
-            Limpiar
-          </Button>
+          <Campo label="Código QR" className="flex-1 min-w-72 max-w-2xl">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                value={search}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Auto-busca cuando el escáner termina (mete \n o \r al final)
+                  if (/[\r\n]$/.test(v)) buscar(v);
+                  else setSearch(v);
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  buscar(e.clipboardData.getData("text"));
+                }}
+                placeholder="Escanea o pega el QR: URL completa, lectura del escáner o solo el código"
+                className={cn(inputCls, "pl-9 font-mono text-xs")}
+                autoFocus
+              />
+            </div>
+          </Campo>
+          <Boton type="submit">Buscar</Boton>
+          {query && (
+            <Boton variante="secundario" onClick={() => { setSearch(""); setQuery(""); }}>
+              <X size={14} /> Limpiar
+            </Boton>
+          )}
+        </form>
+        {search && search !== query && (
+          <p className="text-xs text-zinc-500 font-mono mt-2">Se buscará: {normalizarQR(search)}</p>
         )}
-      </form>
+      </Panel>
 
-      {isLoading && <p className="text-zinc-600 text-sm">Buscando...</p>}
+      {isLoading && <p className="text-sm text-zinc-500">Buscando…</p>}
       {error && (
-        <p className="text-red-400 text-sm">
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
           {error.response?.data?.error || "QR no encontrado"}
         </p>
       )}
 
       {data && (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
-              Información del QR
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              {[
-                { label: "Código QR", value: data.codigo_qr, mono: true },
-                { label: "UPC", value: data.upc, mono: true },
-                { label: "SKU", value: data.sku_number || "—" },
-                { label: "Style No", value: data.style_no || "—" },
-                { label: "Producto", value: data.style_name || "—" },
-                { label: "Talla", value: data.size || "—" },
-                { label: "Color", value: `${data.color || ""} ${data.color_name ? "· " + data.color_name : ""}`.trim() || "—" },
-                {
-                  label: "Estado QR",
-                  value: data.estado,
-                  color:
-                    data.estado === "enviado"
-                      ? "text-violet-400"
-                      : data.estado === "escaneado"
-                        ? "text-blue-400"
-                        : "text-emerald-400",
-                },
-                {
-                  label: "Total escaneos",
-                  value: data.total_escaneos || 0,
-                },
-              ].map(({ label, value, mono, color }) => (
-                <div key={label}>
-                  <p className="text-zinc-600 text-xs">{label}</p>
-                  <p
-                    className={`text-white font-medium ${mono ? "font-mono text-xs break-all" : ""} ${color || ""}`}
-                  >
-                    {value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
+          <Panel className="xl:col-span-2" title="Código QR" actions={<Estado valor={data.estado} />}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div className="col-span-2"><Dato label="Código" mono>{data.codigo_qr}</Dato></div>
+              <Dato label="UPC" mono>{data.upc}</Dato>
+              <Dato label="SKU" mono>{data.sku_number}</Dato>
+              <Dato label="Style No">{data.style_no}</Dato>
+              <Dato label="Talla">{data.size}</Dato>
+              <Dato label="Producto">{data.style_name}</Dato>
+              <Dato label="Color">{[data.color, data.color_name].filter(Boolean).join(" · ")}</Dato>
+              <Dato label="Escaneos">{fmtNum(data.total_escaneos)}</Dato>
+            </dl>
+          </Panel>
 
-          {data.total_escaneos > 0 && (
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-              <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
-                Cadena de custodia (escaneo más reciente)
-              </p>
-              <div className="space-y-3">
-                {[
-                  {
-                    label: "Escaneado por",
-                    value: data.escaneado_por,
-                    ts: data.escaneado_at,
-                  },
-                  {
-                    label: "Caja",
-                    value: data.codigo_caja || "(sin caja, directo a cartón)",
-                    sub: data.caja_estado,
-                  },
-                  {
-                    label: "Cartón",
-                    value: data.carton_id,
-                    sub: `${data.carton_tipo || ""} · ${data.carton_estado || ""}`,
-                  },
-                  {
-                    label: "Purchase Order",
-                    value: data.po_number,
-                    sub: `${data.po_estado} ${data.cfm_xf_date ? "· XF: " + data.cfm_xf_date : ""}`,
-                  },
-                ].map(
-                  ({ label, value, sub, ts }) =>
-                    value && (
-                      <div
-                        key={label}
-                        className="flex items-start justify-between text-sm"
-                      >
-                        <div>
-                          <p className="text-zinc-600 text-xs">{label}</p>
-                          <p className="text-white font-mono text-xs font-medium">
-                            {value}
-                          </p>
-                          {sub && <p className="text-zinc-500 text-xs">{sub}</p>}
-                        </div>
-                        {ts && (
-                          <span className="text-zinc-600 text-xs">
-                            {new Date(ts).toLocaleString("es-MX")}
-                          </span>
-                        )}
+          <div className="xl:col-span-3 space-y-4">
+            {data.total_escaneos > 0 && (
+              <Panel title="Cadena de custodia" subtitle="Escaneo más reciente">
+                <ol className="relative border-l border-zinc-200 ml-1.5 space-y-4">
+                  {cadena.filter((c) => c.valor).map((c) => (
+                    <li key={c.paso} className="relative pl-5">
+                      <span className="absolute -left-[5.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-600 ring-4 ring-white" />
+                      <p className="text-xs text-zinc-500">{c.paso}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <span className="font-mono text-xs text-zinc-900">{c.valor}</span>
+                        {c.detalle}
                       </div>
-                    ),
-                )}
-              </div>
-            </div>
-          )}
+                    </li>
+                  ))}
+                </ol>
+              </Panel>
+            )}
 
-          {data.escaneos?.length > 1 && (
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-              <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
-                Historial de escaneos ({data.escaneos.length})
-              </p>
-              <div className="space-y-2">
-                {data.escaneos.map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center justify-between text-xs py-2 border-b border-white/5 last:border-0"
-                  >
-                    <div className="flex gap-3">
-                      <span className="text-zinc-500">{e.escaneado_por}</span>
-                      <span className="text-white font-mono">
-                        {e.codigo_caja || e.carton_id}
-                      </span>
-                      <span className="text-zinc-600">
-                        PO {e.po_number}
-                      </span>
-                    </div>
-                    <span className="text-zinc-500">
-                      {new Date(e.escaneado_at).toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            {data.escaneos?.length > 1 && (
+              <Panel title={`Historial de escaneos (${data.escaneos.length})`} flush>
+                <Tabla>
+                  <tbody>
+                    {data.escaneos.map((e) => (
+                      <tr key={e.id}>
+                        <td className={cn(td, "text-zinc-500 tabular-nums whitespace-nowrap")}>{new Date(e.escaneado_at).toLocaleString("es-MX")}</td>
+                        <td className={tdMono}>{e.codigo_caja || e.carton_id}</td>
+                        <td className={td}>{e.po_number ? `PO ${e.po_number}` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Tabla>
+              </Panel>
+            )}
 
-          {data.envios?.length > 0 && (
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-              <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
-                Envíos a T4
-              </p>
-              <div className="space-y-2">
-                {data.envios.map((e, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between text-xs py-2 border-b border-white/5 last:border-0"
-                  >
-                    <span
-                      className={
-                        e.estado === "enviado"
-                          ? "text-violet-400"
-                          : "text-red-400"
-                      }
-                    >
-                      {e.estado}
-                    </span>
-                    <span className="text-zinc-500">
-                      {new Date(
-                        e.enviado_at || e.cancelado_at,
-                      ).toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            {data.envios?.length > 0 && (
+              <Panel title="Envíos a T4" flush>
+                <Tabla>
+                  <tbody>
+                    {data.envios.map((e, i) => (
+                      <tr key={i}>
+                        <td className={td}><Estado valor={e.estado} /></td>
+                        <td className={cn(td, "text-zinc-500 text-right tabular-nums")}>
+                          {new Date(e.enviado_at || e.cancelado_at).toLocaleString("es-MX")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Tabla>
+              </Panel>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -393,21 +327,13 @@ function TabTrazabilidad() {
 
 // --- Tab: Cajas por SKU ---
 function TabCajas() {
-  const [filters, setFilters] = useState({
-    sku: "",
-    estado: "",
-    po_number: "",
-    operador: "",
-    fecha_desde: "",
-    fecha_hasta: "",
-  });
+  const [filters, setFilters] = useState({ sku: "", estado: "", po_number: "", fecha_desde: "", fecha_hasta: "" });
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
   const debouncedFilters = {
     sku: useDebounce(filters.sku, 300),
     po_number: useDebounce(filters.po_number, 300),
-    operador: useDebounce(filters.operador, 300),
     estado: filters.estado,
     fecha_desde: filters.fecha_desde,
     fecha_hasta: filters.fecha_hasta,
@@ -415,11 +341,8 @@ function TabCajas() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["cajas-sku", debouncedFilters, page],
-    queryFn: () =>
-      getCajasPorSKU({ ...debouncedFilters, page, limit: 50 }).then(
-        (r) => r.data,
-      ),
-    keepPreviousData: true,
+    queryFn: () => getCajasPorSKU({ ...debouncedFilters, page, limit: 50 }).then((r) => r.data),
+    placeholderData: conservar,
   });
 
   async function handleExport() {
@@ -429,17 +352,16 @@ function TabCajas() {
       exportToExcel(
         (res.data.data || []).map((r) => ({
           "Código Caja": r.codigo_caja,
-          "PO": r.po_number || "",
-          "Cartón": r.carton_id || "",
+          PO: r.po_number || "",
+          Cartón: r.carton_id || "",
           SKU: r.sku_number,
           Producto: r.style_name,
           Talla: r.size,
           Color: r.color_name,
-          "Pares": r.cantidad_pares,
+          Pares: r.cantidad_pares,
           "QRs Escaneados": r.qrs_escaneados,
           Estado: r.estado,
-          "Creado Por": r.creado_por,
-          Fecha: new Date(r.created_at).toLocaleString("es-MX"),
+          "Fecha y hora": fmtFechaHora(r.fecha_hora),
         })),
         "cajas-por-sku",
       );
@@ -455,156 +377,126 @@ function TabCajas() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-        <div className="relative md:col-span-2">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-          <Input
-            value={filters.sku}
-            onChange={(e) => set("sku", e.target.value)}
-            placeholder="SKU..."
-            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
-          />
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+          <Campo label="SKU" className="col-span-2">
+            <input value={filters.sku} onChange={(e) => set("sku", e.target.value)} placeholder="Ej. 10001-001-M7W9" className={inputCls} />
+          </Campo>
+          <Campo label="PO">
+            <input value={filters.po_number} onChange={(e) => set("po_number", e.target.value)} placeholder="Número de PO" className={inputCls} />
+          </Campo>
+          <Campo label="Estado">
+            <select value={filters.estado} onChange={(e) => set("estado", e.target.value)} className={inputCls}>
+              <option value="">Todas</option>
+              <option value="abierta">Abiertas</option>
+              <option value="empacada">Empacadas</option>
+            </select>
+          </Campo>
+          <Campo label="Abiertas desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
         </div>
-        <Input
-          value={filters.po_number}
-          onChange={(e) => set("po_number", e.target.value)}
-          placeholder="PO number..."
-          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
-        />
-        <Input
-          value={filters.operador}
-          onChange={(e) => set("operador", e.target.value)}
-          placeholder="Operador..."
-          className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
-        />
-        <Input
-          type="date"
-          value={filters.fecha_desde}
-          onChange={(e) => set("fecha_desde", e.target.value)}
-          className="bg-white/5 border-white/10 text-white h-9"
-        />
-        <Input
-          type="date"
-          value={filters.fecha_hasta}
-          onChange={(e) => set("fecha_hasta", e.target.value)}
-          className="bg-white/5 border-white/10 text-white h-9"
-        />
-      </div>
-      <div className="flex items-center gap-3">
-        <select
-          value={filters.estado}
-          onChange={(e) => set("estado", e.target.value)}
-          className="h-9 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 focus:outline-none"
-        >
-          <option value="" className="bg-zinc-900">
-            Todos los estados
-          </option>
-          <option value="abierta" className="bg-zinc-900">
-            Abiertas
-          </option>
-          <option value="empacada" className="bg-zinc-900">
-            Empacadas
-          </option>
-        </select>
-        <span className="text-xs text-zinc-500">
-          {data?.total?.toLocaleString() || 0} resultados
-        </span>
-        <Button
-          size="sm"
-          onClick={handleExport}
-          disabled={!data?.total || exporting}
-          className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
-        >
-          <Download size={14} />
-          {exporting ? "Exportando..." : "Exportar todo"}
-        </Button>
-      </div>
-      <div className="rounded-xl border border-white/5 overflow-hidden">
-        <table className="w-full text-sm">
+      </Panel>
+
+      <Panel
+        title={`${fmtNum(data?.total)} cajas`}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        flush
+      >
+        <Tabla>
           <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Código Caja
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                PO / Cartón
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                SKU
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Talla
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Pares
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Escaneados
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Estado
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Operador
-              </th>
+            <tr>
+              <th className={th}>Código de caja</th>
+              <th className={th}>PO / Cartón</th>
+              <th className={th}>SKU</th>
+              <th className={th}>Talla</th>
+              <th className={thNum}>Pares</th>
+              <th className={thNum}>Escaneados</th>
+              <th className={th}>Estado</th>
+              <th className={th}>Fecha y hora</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-zinc-600">
-                  Cargando...
-                </td>
-              </tr>
+              <FilaMensaje cols={8}>Cargando…</FilaMensaje>
+            ) : !data?.data?.length ? (
+              <FilaMensaje cols={8}>Sin cajas con estos filtros</FilaMensaje>
             ) : (
-              (data?.data || []).map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                >
-                  <td className="px-4 py-3 text-white font-mono text-xs">
-                    {r.codigo_caja}
+              data.data.map((r) => (
+                <tr key={r.id} className="hover:bg-zinc-50">
+                  <td className={tdMono}>{r.codigo_caja}</td>
+                  <td className={cn(td, "font-mono text-xs")}>
+                    {r.po_number ? (<><div className="text-zinc-900">{r.po_number}</div><div className="text-zinc-500">{r.carton_id}</div></>) : <span className="text-zinc-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">
-                    <div>{r.po_number || "—"}</div>
-                    <div className="text-zinc-600">{r.carton_id || ""}</div>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-300 font-mono text-xs">
-                    {r.sku_number}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400">{r.size}</td>
-                  <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
-                    {r.cantidad_pares}
-                  </td>
-                  <td className="px-4 py-3 text-right text-emerald-400 tabular-nums">
-                    {r.qrs_escaneados}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-md border font-medium ${r.estado === "empacada" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"}`}
-                    >
-                      {r.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs">
-                    {r.creado_por}
-                  </td>
+                  <td className={cn(td, "font-mono text-xs")}>{r.sku_number}</td>
+                  <td className={td}>{r.size}</td>
+                  <td className={tdNum}>{r.cantidad_pares}</td>
+                  <td className={cn(tdNum, +r.qrs_escaneados < r.cantidad_pares ? "text-amber-700 font-medium" : "text-zinc-900")}>{r.qrs_escaneados}</td>
+                  <td className={td}><Estado valor={r.estado} /></td>
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
                 </tr>
               ))
             )}
           </tbody>
-        </table>
-      </div>
-      <Paginator
-        page={data?.page || 1}
-        pages={data?.pages || 1}
-        total={data?.total || 0}
-        limit={50}
-        onPage={setPage}
-      />
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={50} onPage={setPage} />
+      </Panel>
+    </div>
+  );
+}
+
+// --- Lista de POs para elegir (Cartones pendientes y Detalle PO) ---
+function ElegirPO({ search, setSearch, pos, cargando, titulo, vacio, onSelect }) {
+  return (
+    <Panel
+      title={cargando ? "Cargando POs…" : titulo(pos.length)}
+      actions={
+        <div className="relative w-64">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar PO" className={cn(inputCls, "pl-9")} />
+        </div>
+      }
+      flush
+    >
+      {!cargando && pos.length === 0 ? (
+        <p className="px-5 pb-8 pt-4 text-center text-sm text-zinc-500">{vacio}</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 border-t border-zinc-100 max-h-[640px] overflow-y-auto">
+          {pos.map((po) => (
+            <li key={po.id}>
+              <button
+                onClick={() => onSelect(po)}
+                className="w-full grid grid-cols-[120px_100px_minmax(0,1fr)_200px] items-center gap-4 px-5 py-3 text-left hover:bg-zinc-50"
+              >
+                <span className="font-mono text-xs text-zinc-900 font-medium">{po.po_number}</span>
+                <Estado valor={po.estado} />
+                <BarraAvance valor={+po.cartones_completos} total={+po.total_cartones} />
+                <span className="text-xs text-zinc-500 text-right tabular-nums">
+                  {fmtNum(po.cartones_completos)}/{fmtNum(po.total_cartones)} cartones
+                  {+po.cartones_pendientes > 0 && ` · faltan ${fmtNum(po.cartones_pendientes)}`}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function EncabezadoPO({ po, onBack, children, acciones }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm text-zinc-700 hover:bg-zinc-50">
+        <ArrowLeft size={14} /> Cambiar PO
+      </button>
+      <span className="font-mono text-sm font-semibold text-zinc-900">PO {po.po_number}</span>
+      <Estado valor={po.estado} />
+      <span className="text-sm text-zinc-500">{children}</span>
+      <div className="ml-auto">{acciones}</div>
     </div>
   );
 }
@@ -615,20 +507,15 @@ function TabPendientes() {
   const [poSeleccionada, setPoSeleccionada] = useState(null);
   const debouncedSearch = useDebounce(search, 300);
 
-  const { data: posData } = useQuery({
-    queryKey: ["purchase-orders-pendientes", debouncedSearch],
-    queryFn: () =>
-      getPurchaseOrders({
-        search: debouncedSearch,
-        estado: "",
-        limit: 20,
-      }).then((r) => r.data),
+  // Todas las POs con al menos un cartón pendiente (antes solo las 20 más recientes).
+  const { data: pos = [], isLoading: cargandoPOs } = useQuery({
+    queryKey: ["reporte-pos-pendientes", debouncedSearch],
+    queryFn: () => getPOsReporte({ filtro: "pendientes", search: debouncedSearch }).then((r) => r.data),
   });
 
   const { data: pendientes, isLoading } = useQuery({
     queryKey: ["cartones-pendientes", poSeleccionada?.id],
-    queryFn: () =>
-      getCartonesPendientesPorPO(poSeleccionada.id).then((r) => r.data),
+    queryFn: () => getCartonesPendientesPorPO(poSeleccionada.id).then((r) => r.data),
     enabled: !!poSeleccionada,
   });
 
@@ -654,153 +541,76 @@ function TabPendientes() {
     exportToExcel(flat, `cartones-pendientes-${poSeleccionada.po_number}`);
   }
 
+  if (!poSeleccionada) {
+    return (
+      <ElegirPO
+        search={search}
+        setSearch={setSearch}
+        pos={pos}
+        cargando={cargandoPOs}
+        titulo={(n) => `${fmtNum(n)} POs con cartones pendientes`}
+        vacio="No hay POs con cartones pendientes"
+        onSelect={setPoSeleccionada}
+      />
+    );
+  }
+
+  const cartones = pendientes?.cartones_pendientes || [];
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar PO..."
-            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
-          />
-        </div>
-        {poSeleccionada && (
-          <Button
-            size="sm"
-            onClick={handleExport}
-            className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
-          >
-            <Download size={14} /> Exportar detalle
-          </Button>
-        )}
-      </div>
-
-      {!poSeleccionada ? (
-        <div className="space-y-1.5">
-          {(posData?.data || []).map((po) => (
-            <button
-              key={po.id}
-              onClick={() => setPoSeleccionada(po)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] transition-colors text-left"
-            >
-              <span className="font-mono text-xs text-white font-medium flex-1">
-                {po.po_number}
-              </span>
-              <span className="text-zinc-500 text-xs">
-                {po.cartones_completos}/{po.total_cartones} completos
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPoSeleccionada(null)}
-              className="text-xs text-zinc-500 hover:text-white transition-colors"
-            >
-              ← Cambiar PO
-            </button>
-            <span className="text-zinc-700">·</span>
-            <span className="text-white font-mono text-xs font-medium">
-              {poSeleccionada.po_number}
-            </span>
-            <span className="text-zinc-600 text-xs ml-1">
-              {pendientes?.cartones_pendientes?.length || 0} cartones pendientes
-            </span>
-          </div>
-          <div className="rounded-xl border border-white/5 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    Cartón ID
-                  </th>
-                  <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    Tipo
-                  </th>
-                  <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    Progreso
-                  </th>
-                  <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                    Detalle SKUs
-                  </th>
+      <EncabezadoPO
+        po={poSeleccionada}
+        onBack={() => setPoSeleccionada(null)}
+        acciones={<BotonExportar onClick={handleExport} disabled={!cartones.length}>Exportar detalle</BotonExportar>}
+      >
+        {fmtNum(cartones.length)} cartones pendientes de {fmtNum(poSeleccionada.total_cartones)}
+      </EncabezadoPO>
+      <Panel flush>
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>Cartón</th>
+              <th className={th}>Tipo</th>
+              <th className={cn(th, "w-56")}>Avance</th>
+              <th className={th}>Detalle por SKU</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={4}>Cargando…</FilaMensaje>
+            ) : cartones.length === 0 ? (
+              <FilaMensaje cols={4}>Esta PO ya no tiene cartones pendientes</FilaMensaje>
+            ) : (
+              cartones.map((c) => (
+                <tr key={c.id} className="align-top hover:bg-zinc-50">
+                  <td className={tdMono}>{c.carton_id}</td>
+                  <td className={td}><Estado valor={c.tipo} /></td>
+                  <td className={td}>
+                    <BarraAvance valor={+c.pares_escaneados} total={+c.pares_esperados} className="mt-1.5" />
+                    <p className="text-xs text-zinc-500 mt-1 tabular-nums">{c.pares_escaneados} de {c.pares_esperados} pares</p>
+                  </td>
+                  <td className={td}>
+                    <div className="space-y-1">
+                      {(c.detalles || []).map((d, i) => {
+                        const falta = d.cantidad_esperada - d.cantidad_actual;
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <span className="font-mono text-zinc-900">{d.sku_number}</span>
+                            <span className={cn("tabular-nums", falta > 0 ? "text-amber-700" : "text-emerald-700")}>
+                              {d.cantidad_actual}/{d.cantidad_esperada}
+                            </span>
+                            {falta > 0 && <span className="text-zinc-500">faltan {falta}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-4 py-8 text-center text-zinc-600"
-                    >
-                      Cargando...
-                    </td>
-                  </tr>
-                ) : (
-                  (pendientes?.cartones_pendientes || []).map((c) => (
-                    <tr
-                      key={c.id}
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors align-top"
-                    >
-                      <td className="px-4 py-3 text-white font-mono text-xs">
-                        {c.carton_id}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-md border font-medium ${c.tipo === "musical" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"}`}
-                        >
-                          {c.tipo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs tabular-nums">
-                        {c.pares_escaneados}/{c.pares_esperados}
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">
-                        <div className="space-y-1">
-                          {(c.detalles || []).map((d, i) => {
-                            const falta =
-                              d.cantidad_esperada - d.cantidad_actual;
-                            return (
-                              <div
-                                key={i}
-                                className="flex items-center gap-2 font-mono"
-                              >
-                                <span className="text-zinc-300">
-                                  {d.sku_number}
-                                </span>
-                                <span
-                                  className={
-                                    falta > 0
-                                      ? "text-amber-400"
-                                      : "text-emerald-400"
-                                  }
-                                >
-                                  {d.cantidad_actual}/{d.cantidad_esperada}
-                                </span>
-                                {falta > 0 && (
-                                  <span className="text-zinc-600">
-                                    (faltan {falta})
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              ))
+            )}
+          </tbody>
+        </Tabla>
+      </Panel>
     </div>
   );
 }
@@ -809,198 +619,242 @@ function TabPendientes() {
 function TabDetallePO() {
   const [search, setSearch] = useState("");
   const [poSeleccionada, setPoSeleccionada] = useState(null);
-  const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebounce(search, 300);
 
-  const { data: posData } = useQuery({
-    queryKey: ["purchase-orders-detalle", debouncedSearch],
-    queryFn: () =>
-      getPurchaseOrders({
-        search: debouncedSearch,
-        estado: "",
-        limit: 20,
-      }).then((r) => r.data),
+  const { data: pos = [], isLoading: cargandoPOs } = useQuery({
+    queryKey: ["reporte-pos-con-escaneos", debouncedSearch],
+    queryFn: () => getPOsReporte({ filtro: "con_escaneos", search: debouncedSearch }).then((r) => r.data),
   });
 
   const { data: detalle, isLoading } = useQuery({
     queryKey: ["detalle-po", poSeleccionada?.id],
-    queryFn: () =>
-      getDetalleCartonesPorPO(poSeleccionada.id).then((r) => r.data),
+    queryFn: () => getDetalleCartonesPorPO(poSeleccionada.id).then((r) => r.data),
     enabled: !!poSeleccionada,
   });
 
-  async function handleExport() {
+  function handleExport() {
     if (!detalle) return;
+    exportToExcel(
+      detalle.detalles.map((r) => ({
+        PO: r.po_number,
+        "Cartón ID": r.carton_id,
+        "Tipo Cartón": r.carton_tipo,
+        "Estado Cartón": r.carton_estado,
+        "Código Caja": r.codigo_caja || "",
+        "Estado Caja": r.caja_estado || "",
+        SKU: r.sku_number || "",
+        "Style No": r.style_no || "",
+        Producto: r.style_name || "",
+        Talla: r.size || "",
+        Color: r.color || "",
+        "Nombre Color": r.color_name || "",
+        "Código QR": r.codigo_qr || "",
+        UPC: r.upc || "",
+        "Estado QR": r.qr_estado || "",
+        "Escaneado Por": r.escaneado_por || "",
+        "Fecha Escaneo": r.escaneado_at ? new Date(r.escaneado_at).toLocaleString("es-MX") : "",
+      })),
+      `detalle-${detalle.po.po_number}`,
+    );
+  }
+
+  if (!poSeleccionada) {
+    return (
+      <ElegirPO
+        search={search}
+        setSearch={setSearch}
+        pos={pos}
+        cargando={cargandoPOs}
+        titulo={(n) => `${fmtNum(n)} POs con escaneos`}
+        vacio="Ninguna PO tiene escaneos todavía"
+        onSelect={setPoSeleccionada}
+      />
+    );
+  }
+
+  const filas = detalle?.detalles || [];
+  return (
+    <div className="space-y-4">
+      <EncabezadoPO
+        po={poSeleccionada}
+        onBack={() => setPoSeleccionada(null)}
+        acciones={<BotonExportar onClick={handleExport} disabled={!filas.length} />}
+      >
+        {fmtNum(detalle?.total)} pares registrados
+      </EncabezadoPO>
+      <Panel flush>
+        <div className="max-h-[640px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className={th}>Cartón</th>
+                <th className={th}>Caja</th>
+                <th className={th}>SKU</th>
+                <th className={th}>Código QR</th>
+                <th className={th}>Fecha y hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <FilaMensaje cols={5}>Cargando…</FilaMensaje>
+              ) : filas.length === 0 ? (
+                <FilaMensaje cols={5}>Sin escaneos registrados</FilaMensaje>
+              ) : (
+                filas.map((r, i) => (
+                  <tr key={i} className="hover:bg-zinc-50">
+                    <td className={tdMono}>{r.carton_id}</td>
+                    <td className={cn(td, "font-mono text-xs")}>{r.codigo_caja || "—"}</td>
+                    <td className={cn(td, "font-mono text-xs")}>{r.sku_number}</td>
+                    <td className={cn(td, "font-mono text-[11px] text-zinc-500 break-all")}>{r.codigo_qr}</td>
+                    <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>
+                      {r.escaneado_at ? new Date(r.escaneado_at).toLocaleString("es-MX") : "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+// --- Tab: Detalle Caja-QR ---
+function TabDetalleCajas() {
+  const [filters, setFilters] = useState({ codigo: "", sku: "", po_number: "", estado: "", fecha_desde: "", fecha_hasta: "" });
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+
+  const debouncedFilters = {
+    codigo: useDebounce(filters.codigo, 300),
+    sku: useDebounce(filters.sku, 300),
+    po_number: useDebounce(filters.po_number, 300),
+    estado: filters.estado,
+    fecha_desde: filters.fecha_desde,
+    fecha_hasta: filters.fecha_hasta,
+  };
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["detalle-cajas", debouncedFilters, page],
+    queryFn: () => getDetalleCajas({ ...debouncedFilters, page, limit: 100 }).then((r) => r.data),
+    placeholderData: conservar,
+  });
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  }
+
+  async function handleExport() {
     setExporting(true);
     try {
+      const res = await getDetalleCajas({ ...debouncedFilters, all: 1 });
       exportToExcel(
-        detalle.detalles.map((r) => ({
-          PO: r.po_number,
-          "Cartón ID": r.carton_id,
-          "Tipo Cartón": r.carton_tipo,
-          "Estado Cartón": r.carton_estado,
-          "Código Caja": r.codigo_caja || "",
-          "Estado Caja": r.caja_estado || "",
-          SKU: r.sku_number || "",
-          "Style No": r.style_no || "",
+        (res.data.data || []).map((r) => ({
+          "Código Caja": r.codigo_caja,
+          "Estado Caja": r.caja_estado,
+          "Pares Caja": r.cantidad_pares,
+          "Caja abierta": fmtFechaHora(r.caja_abierta_at),
+          SKU: r.sku_number,
           Producto: r.style_name || "",
           Talla: r.size || "",
-          Color: r.color || "",
-          "Nombre Color": r.color_name || "",
-          "Código QR": r.codigo_qr || "",
-          UPC: r.upc || "",
-          "Estado QR": r.qr_estado || "",
-          "Escaneado Por": r.escaneado_por || "",
-          "Fecha Escaneo": r.escaneado_at
-            ? new Date(r.escaneado_at).toLocaleString("es-MX")
-            : "",
+          Color: r.color_name || "",
+          "Código QR": r.codigo_qr,
+          UPC: r.upc,
+          "Estado QR": r.qr_estado,
+          "Fecha y hora escaneo": fmtFechaHora(r.escaneado_at),
+          Cartón: r.carton_id || "",
+          PO: r.po_number || "",
         })),
-        `detalle-${detalle.po.po_number}`,
+        "detalle-caja-qr",
       );
     } finally {
       setExporting(false);
     }
   }
 
+  const filas = data?.data || [];
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar PO..."
-            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 h-9"
-          />
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 pt-5">
+          <Campo label="Código de caja" className="col-span-2">
+            <input value={filters.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Todo o parte del código" className={cn(inputCls, "font-mono")} />
+          </Campo>
+          <Campo label="SKU">
+            <input value={filters.sku} onChange={(e) => set("sku", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="PO">
+            <input value={filters.po_number} onChange={(e) => set("po_number", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Estado de la caja">
+            <select value={filters.estado} onChange={(e) => set("estado", e.target.value)} className={inputCls}>
+              <option value="">Todas</option>
+              <option value="abierta">Abiertas</option>
+              <option value="empacada">Empacadas</option>
+            </select>
+          </Campo>
+          <Campo label="Escaneado desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
         </div>
-        {poSeleccionada && (
-          <Button
-            size="sm"
-            onClick={handleExport}
-            disabled={!detalle?.total || exporting}
-            className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100 ml-auto"
-          >
-            <Download size={14} />
-            {exporting ? "Exportando..." : "Exportar Excel"}
-          </Button>
-        )}
-      </div>
+      </Panel>
 
-      {!poSeleccionada ? (
-        <div className="space-y-1.5">
-          {(posData?.data || []).map((po) => (
-            <button
-              key={po.id}
-              onClick={() => setPoSeleccionada(po)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] transition-colors text-left"
-            >
-              <span className="font-mono text-xs text-white font-medium flex-1">
-                {po.po_number}
-              </span>
-              <span className="text-zinc-500 text-xs">
-                {po.cantidad_pares} pares · {po.total_cartones} cartones
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPoSeleccionada(null)}
-              className="text-xs text-zinc-500 hover:text-white transition-colors"
-            >
-              ← Cambiar PO
-            </button>
-            <span className="text-zinc-700">·</span>
-            <span className="text-white font-mono text-xs font-medium">
-              {poSeleccionada.po_number}
-            </span>
-            <span className="text-zinc-600 text-xs ml-1">
-              {detalle?.total?.toLocaleString() || 0} filas
-            </span>
-          </div>
-          <div className="rounded-xl border border-white/5 overflow-hidden max-h-[600px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-950">
-                <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    Cartón
-                  </th>
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    Caja
-                  </th>
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    SKU
-                  </th>
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    QR
-                  </th>
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    Operador
-                  </th>
-                  <th className="text-left px-3 py-2 text-zinc-500 font-medium text-xs">
-                    Fecha
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-8 text-center text-zinc-600"
-                    >
-                      Cargando...
+      <Panel
+        title={`${fmtNum(data?.total)} pares en ${fmtNum(data?.cajas)} cajas`}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>Caja</th>
+              <th className={th}>SKU</th>
+              <th className={th}>Código QR</th>
+              <th className={th}>Escaneado</th>
+              <th className={th}>Cartón / PO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={5}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={5}>Sin escaneos con estos filtros</FilaMensaje>
+            ) : (
+              filas.map((r, i) => {
+                // La caja se muestra solo en su primera fila de la página.
+                const nuevaCaja = i === 0 || filas[i - 1].caja_id !== r.caja_id;
+                return (
+                  <tr key={`${r.caja_id}-${r.codigo_qr}`} className={cn("hover:bg-zinc-50", nuevaCaja && i > 0 && "[&>td]:border-t [&>td]:border-t-zinc-300")}>
+                    <td className={cn(td, "align-top")}>
+                      {nuevaCaja && (
+                        <>
+                          <div className="font-mono text-xs text-zinc-900">{r.codigo_caja}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Estado valor={r.caja_estado} />
+                            <span className="text-xs text-zinc-500 tabular-nums">{r.cantidad_pares} pares · {fmtFechaHora(r.caja_abierta_at)}</span>
+                          </div>
+                        </>
+                      )}
+                    </td>
+                    <td className={cn(td, "font-mono text-xs")}>{r.sku_number}</td>
+                    <td className={cn(td, "font-mono text-[11px] text-zinc-500 break-all")}>{r.codigo_qr}</td>
+                    <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.escaneado_at)}</td>
+                    <td className={cn(td, "font-mono text-xs")}>
+                      {r.carton_id ? (<><div className="text-zinc-900">{r.carton_id}</div><div className="text-zinc-500">{r.po_number}</div></>) : <span className="text-zinc-400 font-sans">Sin embarcar</span>}
                     </td>
                   </tr>
-                ) : (detalle?.detalles || []).length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-8 text-center text-zinc-600"
-                    >
-                      Sin escaneos registrados
-                    </td>
-                  </tr>
-                ) : (
-                  (detalle?.detalles || []).map((r, i) => (
-                    <tr
-                      key={i}
-                      className="border-b border-white/5 hover:bg-white/[0.02]"
-                    >
-                      <td className="px-3 py-2 text-white font-mono text-xs">
-                        {r.carton_id}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400 font-mono text-xs">
-                        {r.codigo_caja || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-300 font-mono text-xs">
-                        {r.sku_number}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400 font-mono text-[10px] break-all max-w-xs">
-                        {r.codigo_qr}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400 text-xs">
-                        {r.escaneado_por}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-600 text-xs">
-                        {r.escaneado_at
-                          ? new Date(r.escaneado_at).toLocaleString("es-MX")
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                );
+              })
+            )}
+          </tbody>
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={100} onPage={setPage} />
+      </Panel>
     </div>
   );
 }
@@ -1012,7 +866,7 @@ function TabQRsSinSKU() {
   const { data, isLoading } = useQuery({
     queryKey: ["qrs-sin-sku", page],
     queryFn: () => getQrsSinSKU({ page, limit: 100 }).then((r) => r.data),
-    keepPreviousData: true,
+    placeholderData: conservar,
   });
 
   function handleExport() {
@@ -1028,95 +882,40 @@ function TabQRsSinSKU() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500">
-          {data?.total ? (
-            <>
-              <span className="text-red-400 font-semibold">
-                {data.total.toLocaleString()}
-              </span>{" "}
-              QRs sin SKU asignado
-            </>
+    <Panel
+      title={data ? `${fmtNum(data.total)} QRs sin SKU asignado` : "Cargando…"}
+      subtitle="Su UPC no está en el catálogo. Al cargar el SKU, usa «Vincular QRs huérfanos» en Importar QRs."
+      actions={<BotonExportar onClick={handleExport} disabled={!data?.data?.length}>Exportar página</BotonExportar>}
+      flush
+    >
+      <Tabla>
+        <thead>
+          <tr>
+            <th className={th}>Código QR</th>
+            <th className={th}>UPC</th>
+            <th className={th}>Estado</th>
+            <th className={th}>Importado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <FilaMensaje cols={4}>Cargando…</FilaMensaje>
+          ) : !data?.data?.length ? (
+            <FilaMensaje cols={4}>Todos los QRs tienen SKU asignado</FilaMensaje>
           ) : (
-            "Cargando..."
+            data.data.map((r) => (
+              <tr key={r.id} className="hover:bg-zinc-50">
+                <td className={cn(tdMono, "truncate max-w-md")}>{r.codigo_qr}</td>
+                <td className={cn(td, "font-mono text-xs")}>{r.upc}</td>
+                <td className={td}><Estado valor={r.estado} /></td>
+                <td className={cn(td, "text-zinc-500 tabular-nums")}>{new Date(r.created_at).toLocaleDateString("es-MX")}</td>
+              </tr>
+            ))
           )}
-        </p>
-        <Button
-          size="sm"
-          onClick={handleExport}
-          disabled={!data?.data?.length}
-          className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100"
-        >
-          <Download size={14} /> Exportar
-        </Button>
-      </div>
-      <div className="rounded-xl border border-white/5 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Código QR
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                UPC
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Estado
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Importado
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-600">
-                  Cargando...
-                </td>
-              </tr>
-            ) : (data?.data || []).length === 0 ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-4 py-8 text-center text-emerald-400 text-xs"
-                >
-                  ✓ Todos los QRs tienen SKU asignado
-                </td>
-              </tr>
-            ) : (
-              (data?.data || []).map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                >
-                  <td className="px-4 py-3 text-white font-mono text-xs truncate max-w-xs">
-                    {r.codigo_qr}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">
-                    {r.upc}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs">
-                    {r.estado}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600 text-xs">
-                    {new Date(r.created_at).toLocaleDateString("es-MX")}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <Paginator
-        page={data?.page || 1}
-        pages={data?.pages || 1}
-        total={data?.total || 0}
-        limit={100}
-        onPage={setPage}
-      />
-    </div>
+        </tbody>
+      </Tabla>
+      <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={100} onPage={setPage} />
+    </Panel>
   );
 }
 
@@ -1136,12 +935,8 @@ function TabEnviosT4() {
         "Cant. Cartones": r.cantidad_cartones,
         "QRs Asociados": r.qrs_asociados,
         Estado: r.estado,
-        "Enviado At": r.enviado_at
-          ? new Date(r.enviado_at).toLocaleString("es-MX")
-          : "",
-        "Cancelado At": r.cancelado_at
-          ? new Date(r.cancelado_at).toLocaleString("es-MX")
-          : "",
+        "Enviado At": r.enviado_at ? new Date(r.enviado_at).toLocaleString("es-MX") : "",
+        "Cancelado At": r.cancelado_at ? new Date(r.cancelado_at).toLocaleString("es-MX") : "",
         "Respuesta API": r.respuesta_success || "",
         "Error Code": r.respuesta_error_code || "",
         Mensaje: r.respuesta_mensaje || "",
@@ -1151,177 +946,106 @@ function TabEnviosT4() {
     );
   }
 
-  const ESTADO_STYLES = {
-    enviado: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-    cancelado: "bg-red-500/10 text-red-400 border-red-500/20",
-    pendiente: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-    error: "bg-red-500/10 text-red-400 border-red-500/20",
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={handleExport}
-          disabled={!data.length}
-          className="gap-1.5 bg-white text-zinc-950 hover:bg-zinc-100"
-        >
-          <Download size={14} /> Exportar
-        </Button>
-      </div>
-      <div className="rounded-xl border border-white/5 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                PO
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Estado
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Pares
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                Cartones
-              </th>
-              <th className="text-right px-4 py-3 text-zinc-500 font-medium">
-                QRs
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Fecha
-              </th>
-              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Respuesta T4
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">
-                  Cargando...
-                </td>
-              </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">
-                  Sin envíos registrados
-                </td>
-              </tr>
-            ) : (
-              data.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors align-top"
-                >
-                  <td className="px-4 py-3 text-white font-mono text-xs font-medium">
+    <Panel
+      title={`${fmtNum(data.length)} movimientos con T4`}
+      actions={<BotonExportar onClick={handleExport} disabled={!data.length} />}
+      flush
+    >
+      <Tabla>
+        <thead>
+          <tr>
+            <th className={th}>PO</th>
+            <th className={th}>Estado</th>
+            <th className={thNum}>Pares</th>
+            <th className={thNum}>Cartones</th>
+            <th className={thNum}>QRs</th>
+            <th className={th}>Fecha</th>
+            <th className={th}>Respuesta de T4</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <FilaMensaje cols={7}>Cargando…</FilaMensaje>
+          ) : data.length === 0 ? (
+            <FilaMensaje cols={7}>Sin envíos registrados</FilaMensaje>
+          ) : (
+            data.map((r) => {
+              const ok = String(r.respuesta_success).toLowerCase() === "true";
+              return (
+                <tr key={r.id} className="align-top hover:bg-zinc-50">
+                  <td className={tdMono}>
                     {r.po_number}
-                    {r.cfm_xf_date && (
-                      <div className="text-zinc-600 text-[10px] font-normal mt-0.5">
-                        XF: {r.cfm_xf_date}
-                      </div>
-                    )}
+                    {r.cfm_xf_date && <div className="text-zinc-500 font-sans mt-0.5">XF {fmtFecha(r.cfm_xf_date)}</div>}
                   </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-md border font-medium ${ESTADO_STYLES[r.estado]}`}
-                    >
-                      {r.estado}
-                    </span>
+                  <td className={td}><Estado valor={r.estado} /></td>
+                  <td className={tdNum}>{fmtNum(r.cantidad_pares)}</td>
+                  <td className={tdNum}>{fmtNum(r.cantidad_cartones)}</td>
+                  <td className={cn(tdNum, "text-zinc-900 font-medium")}>{fmtNum(r.qrs_asociados)}</td>
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>
+                    {new Date(r.enviado_at || r.cancelado_at || r.created_at).toLocaleString("es-MX")}
                   </td>
-                  <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
-                    {Number(r.cantidad_pares).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-400 tabular-nums">
-                    {r.cantidad_cartones}
-                  </td>
-                  <td className="px-4 py-3 text-right text-emerald-400 tabular-nums">
-                    {Number(r.qrs_asociados || 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs">
-                    {r.enviado_at
-                      ? new Date(r.enviado_at).toLocaleString("es-MX")
-                      : r.cancelado_at
-                        ? new Date(r.cancelado_at).toLocaleString("es-MX")
-                        : new Date(r.created_at).toLocaleString("es-MX")}
-                  </td>
-                  <td className="px-4 py-3 text-xs max-w-xs">
+                  <td className={cn(td, "max-w-xs text-xs")}>
                     {r.respuesta_success && (
-                      <div
-                        className={
-                          String(r.respuesta_success).toLowerCase() === "true"
-                            ? "text-emerald-400"
-                            : "text-red-400"
-                        }
-                      >
-                        {r.respuesta_success}
-                      </div>
+                      <span className={ok ? "text-emerald-700 font-medium" : "text-red-700 font-medium"}>
+                        {ok ? "Aceptado" : "Rechazado"}
+                      </span>
                     )}
-                    {r.respuesta_error_code && (
-                      <div className="text-red-400 font-mono text-[10px]">
-                        {r.respuesta_error_code}
-                      </div>
-                    )}
-                    {r.respuesta_mensaje && (
-                      <div
-                        className="text-zinc-500 text-[10px] truncate"
-                        title={r.respuesta_mensaje}
-                      >
-                        {r.respuesta_mensaje}
-                      </div>
-                    )}
+                    {r.respuesta_error_code && <div className="text-red-700 font-mono">{r.respuesta_error_code}</div>}
+                    {r.respuesta_mensaje && <div className="text-zinc-500 truncate" title={r.respuesta_mensaje}>{r.respuesta_mensaje}</div>}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+              );
+            })
+          )}
+        </tbody>
+      </Tabla>
+    </Panel>
   );
 }
 
 // --- Página principal ---
-export default function ReportesPage() {
-  const [activeTab, setActiveTab] = useState("produccion");
+const TAB_CONTENT = {
+  produccion: TabProduccion,
+  trazabilidad: TabTrazabilidad,
+  cajas: TabCajas,
+  pendientes: TabPendientes,
+  "detalle-po": TabDetallePO,
+  "detalle-cajas": TabDetalleCajas,
+  "sin-sku": TabQRsSinSKU,
+  envios: TabEnviosT4,
+};
 
-  const TAB_CONTENT = {
-    produccion: <TabProduccion />,
-    trazabilidad: <TabTrazabilidad />,
-    cajas: <TabCajas />,
-    pendientes: <TabPendientes />,
-    "detalle-po": <TabDetallePO />,
-    "sin-sku": <TabQRsSinSKU />,
-    envios: <TabEnviosT4 />,
-  };
+export default function ReportesPage() {
+  // La pestaña va en la URL (?tab=) para poder enlazarla desde el Dashboard.
+  const [params, setParams] = useSearchParams();
+  const activeTab = TAB_CONTENT[params.get("tab")] ? params.get("tab") : "produccion";
+  const Contenido = TAB_CONTENT[activeTab];
 
   return (
-    <div className="p-8">
-      <PageHeader
-        title="Reportes"
-        description="Análisis y trazabilidad del sistema"
-      />
+    <div className="p-8 max-w-[1400px]">
+      <PageTitle title="Reportes" description="Producción, embarque y trazabilidad de códigos" />
 
-      <div className="flex items-center gap-1 mb-6 border-b border-white/5 overflow-x-auto">
-        {TABS.map(({ id, label, icon: Icon }) => (
+      {/* El borde inferior va como sombra interna: un border-b con -mb-px en las
+          pestañas desborda 1 px y hace aparecer una barra de scroll vertical. */}
+      <nav className="flex items-center gap-1 mb-5 overflow-x-auto shadow-[inset_0_-1px_0_#e4e4e7]">
+        {TABS.map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+            onClick={() => setParams({ tab: id })}
+            className={cn(
+              "px-3 py-2.5 text-sm whitespace-nowrap border-b-2",
               activeTab === id
-                ? "border-white text-white"
-                : "border-transparent text-zinc-500 hover:text-zinc-300"
-            }`}
+                ? "border-blue-600 text-zinc-900 font-medium"
+                : "border-transparent text-zinc-500 hover:text-zinc-900",
+            )}
           >
-            <Icon size={13} />
             {label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {TAB_CONTENT[activeTab]}
+      <Contenido key={activeTab} />
     </div>
   );
 }

@@ -1,198 +1,308 @@
-import { useQuery } from '@tanstack/react-query'
-import { getResumenGeneral, getActividadReciente, getProduccionPorOperador } from '@/api/reports'
-import PageHeader from '@/components/layout/PageHeader'
-import { useNavigate } from 'react-router-dom'
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import {
-  Package, QrCode, Truck, Users,
-  CheckCircle2, Clock, Send, XCircle,
-  TrendingUp, Activity,
-} from 'lucide-react'
+  getDashboard,
+  getProduccionPorDia,
+  getResumenGeneral,
+} from "@/api/reports";
+import {
+  BarraAvance,
+  Estado,
+  Kpi,
+  PageTitle,
+  Panel,
+} from "@/components/reportes/kit";
+import { GraficaBarras, Leyenda } from "@/components/reportes/graficas";
+import { COLOR } from "@/components/reportes/estilos";
+import { fmtFecha, fmtFechaHora, fmtHora, fmtNum } from "@/lib/formato";
 
-function StatCard({ label, value, sub, color = 'text-white', icon: Icon, iconColor }) {
-  return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4">
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium">{label}</p>
-        {Icon && <Icon size={14} className={iconColor || 'text-zinc-600'} />}
-      </div>
-      <p className={`text-3xl font-bold ${color} tabular-nums`}>{value}</p>
-      {sub && <p className="text-xs text-zinc-600 mt-1">{sub}</p>}
-    </div>
-  )
+// "2026-10-07" → "martes 7 de octubre", armando la fecha local a mano.
+function diaLargo(fecha) {
+  if (!fecha) return "";
+  const [y, m, d] = fecha.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function comparacion(hoy, ayer) {
+  hoy = Number(hoy);
+  ayer = Number(ayer);
+  if (!ayer) return { texto: "Sin lecturas ayer a esta hora", tono: "neutral" };
+  const pct = Math.round(((hoy - ayer) / ayer) * 100);
+  return {
+    texto: `${pct >= 0 ? "+" : ""}${pct}% vs ayer a esta hora`,
+    tono: pct >= 0 ? "up" : "down",
+  };
 }
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
-
-  const { data: resumen, isLoading } = useQuery({
-    queryKey: ['resumen-general'],
-    queryFn: () => getResumenGeneral().then((r) => r.data),
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => getDashboard().then((r) => r.data),
     refetchInterval: 30000,
-  })
+  });
 
-  const { data: actividad = [] } = useQuery({
-    queryKey: ['actividad-reciente'],
-    queryFn: () => getActividadReciente(20).then((r) => r.data),
-    refetchInterval: 15000,
-  })
+  const { data: porDia = [] } = useQuery({
+    queryKey: ["reporte-produccion-dia", 14],
+    queryFn: () => getProduccionPorDia(14).then((r) => r.data),
+    refetchInterval: 5 * 60000,
+  });
 
-  const { data: operadores = [] } = useQuery({
-    queryKey: ['produccion-operadores'],
-    queryFn: () => getProduccionPorOperador().then((r) => r.data),
-  })
+  // El inventario de QRs cuenta 1.3 M de filas: se pide poco.
+  const { data: resumen } = useQuery({
+    queryKey: ["resumen-general"],
+    queryFn: () => getResumenGeneral().then((r) => r.data),
+    staleTime: 5 * 60000,
+    refetchInterval: 5 * 60000,
+  });
 
-  if (isLoading) {
-    return <div className="p-8 text-zinc-600">Cargando...</div>
+  if (isLoading || !data) {
+    return <div className="p-8 text-sm text-zinc-500">Cargando…</div>;
   }
 
-  const po = resumen?.purchase_orders
-  const cartones = resumen?.cartones
-  const cajas = resumen?.cajas
-  const qrs = resumen?.qrs
+  const { hoy, por_hora, incompletas, pos, actividad } = data;
+  const comp = comparacion(hoy.pares_hoy, hoy.pares_ayer_misma_hora);
+
+  // Solo las horas con producción hoy o en el promedio.
+  const conDatos = por_hora.filter((h) => +h.hoy || +h.promedio);
+  const horas = conDatos.length
+    ? por_hora
+        .filter((h) => h.hora >= conDatos[0].hora && h.hora <= conDatos.at(-1).hora)
+        .map((h) => ({ hora: h.hora, hoy: +h.hoy, promedio: +h.promedio }))
+    : [];
+
+  const dias = [...porDia]
+    .reverse()
+    .map((d) => ({ fecha: d.fecha, abiertas: +d.cajas_abiertas, cerradas: +d.cajas_cerradas }));
+
+  const qrs = resumen?.qrs;
 
   return (
-    <div className="p-8 space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="Resumen general del sistema"
+    <div className="p-8 max-w-[1400px] space-y-5">
+      <PageTitle
+        title="Producción de hoy"
+        description={
+          <span className="first-letter:uppercase inline-block">
+            {diaLargo(hoy.ahora)} · última lectura {fmtHora(hoy.ultima_lectura)}
+          </span>
+        }
+        actions={
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm text-zinc-700 hover:bg-zinc-50"
+          >
+            <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+            Actualizar
+          </button>
+        }
       />
 
-      {/* Purchase Orders */}
-      <section>
-        <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-          <Send size={12} /> Purchase Orders
-        </h2>
-        <div className="grid grid-cols-5 gap-3">
-          <StatCard label="Total POs" value={po?.total || 0} icon={TrendingUp} />
-          <StatCard label="Pendientes" value={po?.pendientes || 0} color="text-zinc-400" icon={Clock} iconColor="text-zinc-600" />
-          <StatCard label="En proceso" value={po?.en_proceso || 0} color="text-blue-400" icon={Activity} iconColor="text-blue-600" />
-          <StatCard label="Enviadas" value={po?.enviadas || 0} color="text-violet-400" icon={Send} iconColor="text-violet-600" />
-          <StatCard label="Canceladas" value={po?.canceladas || 0} color="text-red-400" icon={XCircle} iconColor="text-red-600" />
-        </div>
-      </section>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <Kpi
+          label="Pares escaneados"
+          value={fmtNum(hoy.pares_hoy)}
+          hint={comp.texto}
+          hintTone={comp.tono}
+        />
+        <Kpi
+          label="Cajas cerradas"
+          value={fmtNum(hoy.cajas_cerradas_hoy)}
+          hint={`de ${fmtNum(hoy.cajas_abiertas_hoy)} abiertas hoy`}
+        />
+        <Kpi
+          label="Cajas incompletas"
+          value={fmtNum(incompletas.total)}
+          hint={
+            incompletas.total
+              ? `${fmtNum(incompletas.falta_uno)} con un solo par faltante`
+              : "Ninguna caja se quedó a medias"
+          }
+          tone={incompletas.total ? "alerta" : "normal"}
+          hintTone={incompletas.total ? "alerta" : "neutral"}
+        />
+        <Kpi
+          label="POs listas para T4"
+          value={fmtNum(hoy.pos_listas)}
+          hint={`${fmtNum(hoy.pos_en_proceso)} en proceso`}
+        />
+      </div>
 
-      {/* Cartones + Cajas */}
-      <section className="grid grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-            <Package size={12} /> Cartones
-          </h2>
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Total" value={cartones?.total || 0} />
-            <StatCard label="Completos" value={cartones?.completos || 0} color="text-emerald-400" icon={CheckCircle2} iconColor="text-emerald-600" />
-            <StatCard label="Pendientes" value={cartones?.pendientes || 0} color="text-zinc-400" icon={Clock} iconColor="text-zinc-600" />
-          </div>
-        </div>
-        <div>
-          <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-            <Truck size={12} /> Cajas
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Abiertas" value={cajas?.abiertas || 0} color="text-blue-400" />
-            <StatCard label="Empacadas" value={cajas?.empacadas || 0} color="text-emerald-400" />
-          </div>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <Panel
+          className="xl:col-span-3"
+          title="Pares por hora"
+          subtitle="Hoy contra el promedio de los últimos 14 días con producción"
+          actions={
+            <Leyenda
+              items={[
+                { label: "Hoy", color: COLOR.principal },
+                { label: "Promedio", color: COLOR.referencia, linea: true },
+              ]}
+            />
+          }
+        >
+          {horas.length ? (
+            <GraficaBarras
+              data={horas}
+              x="hora"
+              barras={[{ key: "hoy", label: "Hoy", color: COLOR.principal }]}
+              linea={{ key: "promedio", label: "Promedio" }}
+              etiquetaX={(h) => `${String(h).padStart(2, "0")}:00`}
+            />
+          ) : (
+            <p className="py-16 text-center text-sm text-zinc-500">Todavía no hay lecturas</p>
+          )}
+        </Panel>
 
-      {/* QRs */}
-      <section>
-        <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-          <QrCode size={12} /> Códigos QR
-        </h2>
-        <div className="grid grid-cols-4 gap-3">
-          <StatCard label="Total" value={Number(qrs?.total || 0).toLocaleString()} />
-          <StatCard label="Disponibles" value={Number(qrs?.disponibles || 0).toLocaleString()} color="text-emerald-400" />
-          <StatCard label="Escaneados" value={Number(qrs?.escaneados || 0).toLocaleString()} color="text-blue-400" />
-          <StatCard label="Enviados" value={Number(qrs?.enviados || 0).toLocaleString()} color="text-violet-400" />
-        </div>
+        <Panel
+          className="xl:col-span-2"
+          title="Cajas abiertas y cerradas"
+          subtitle="Últimos 14 días"
+          actions={
+            <Leyenda
+              items={[
+                { label: "Abiertas", color: COLOR.claro },
+                { label: "Cerradas", color: COLOR.principal },
+              ]}
+            />
+          }
+        >
+          <GraficaBarras
+            data={dias}
+            x="fecha"
+            barras={[
+              { key: "abiertas", label: "Abiertas", color: COLOR.claro },
+              { key: "cerradas", label: "Cerradas", color: COLOR.principal },
+            ]}
+            etiquetaX={(f) => fmtFecha(f).slice(0, 5)}
+            etiquetaGlobo={fmtFecha}
+          />
+        </Panel>
+      </div>
 
-        {/* Barra visual QRs */}
-        {qrs?.total > 0 && (
-          <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] px-5 py-3">
-            <div className="flex h-3 rounded-full overflow-hidden gap-0.5">
-              <div className="bg-emerald-500 transition-all" style={{ width: `${(qrs.disponibles / qrs.total) * 100}%` }} />
-              <div className="bg-blue-500 transition-all" style={{ width: `${(qrs.escaneados / qrs.total) * 100}%` }} />
-              <div className="bg-violet-500 transition-all" style={{ width: `${(qrs.enviados / qrs.total) * 100}%` }} />
-            </div>
-            <div className="flex items-center gap-4 mt-2">
-              {[
-                { label: 'Disponibles', color: 'bg-emerald-500' },
-                { label: 'Escaneados', color: 'bg-blue-500' },
-                { label: 'Enviados', color: 'bg-violet-500' },
-              ].map(({ label, color }) => (
-                <div key={label} className="flex items-center gap-1.5">
-                  <div className={`w-2 h-2 rounded-full ${color}`} />
-                  <span className="text-xs text-zinc-600">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Bottom grid — actividad + operadores */}
-      <div className="grid grid-cols-2 gap-6">
-
-        {/* Actividad reciente */}
-        <div>
-          <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-            <Activity size={12} /> Actividad reciente
-          </h2>
-          <div className="rounded-xl border border-white/5 overflow-hidden">
-            {actividad.length === 0 ? (
-              <p className="px-4 py-6 text-xs text-zinc-700 text-center">Sin actividad reciente</p>
-            ) : (
-              <div className="divide-y divide-white/5 max-h-72 overflow-y-auto">
-                {actividad.map((a, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
-                    <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                      <span className="text-white text-xs font-medium">{a.operador?.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-300 truncate font-mono">{a.codigo_qr}</p>
-                      <p className="text-xs text-zinc-600">{a.operador} · {a.sku_number}</p>
-                    </div>
-                    <span className="text-xs text-zinc-700 shrink-0">
-                      {new Date(a.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <Panel
+          className="xl:col-span-3"
+          title="Avance de POs"
+          subtitle="Primero las listas para enviar a T4, luego por avance"
+          actions={
+            <Link to="/admin/reportes?tab=pendientes" className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline">
+              Cartones pendientes <ArrowRight size={12} />
+            </Link>
+          }
+        >
+          {pos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-zinc-500">No hay POs en proceso</p>
+          ) : (
+            <ul className="divide-y divide-zinc-100">
+              {pos.map((po) => {
+                const pct = Math.round((po.cartones_completos / po.total_cartones) * 100);
+                return (
+                  <li key={po.id} className="grid grid-cols-[110px_96px_minmax(0,1fr)_130px] items-center gap-4 py-2.5">
+                    <span className="font-mono text-xs text-zinc-900">{po.po_number}</span>
+                    <Estado valor={po.estado} />
+                    <BarraAvance valor={+po.cartones_completos} total={+po.total_cartones} />
+                    <span className="text-xs text-zinc-500 text-right tabular-nums">
+                      {fmtNum(po.cartones_completos)}/{fmtNum(po.total_cartones)} cartones · {pct}%
                     </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
 
-        {/* Producción por operador */}
-        <div>
-          <h2 className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-            <Users size={12} /> Operadores
-          </h2>
-          <div className="rounded-xl border border-white/5 overflow-hidden">
-            {operadores.length === 0 ? (
-              <p className="px-4 py-6 text-xs text-zinc-700 text-center">Sin datos de operadores</p>
-            ) : (
-              <div className="divide-y divide-white/5">
-                {operadores.map((op) => (
-                  <div key={op.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                      <span className="text-white text-xs font-medium">{op.nombre?.charAt(0).toUpperCase()}</span>
+        <Panel
+          className="xl:col-span-2"
+          title="Cajas incompletas"
+          subtitle="Abiertas y sin lecturas en los últimos 10 minutos"
+          actions={
+            incompletas.total > 0 && (
+              <Link to="/admin/reportes?tab=detalle-cajas" className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline">
+                Ver detalle <ArrowRight size={12} />
+              </Link>
+            )
+          }
+        >
+          {incompletas.total === 0 ? (
+            <p className="py-8 text-center text-sm text-zinc-500">Ninguna caja se quedó a medias</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-zinc-100">
+                {incompletas.cajas.map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-zinc-900 truncate">{c.codigo_caja}</p>
+                      <p className="text-xs text-zinc-500">Última lectura {fmtFechaHora(c.ultima_lectura)}</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-300 font-medium truncate">{op.nombre}</p>
-                      <p className="text-xs text-zinc-600">{op.cajas_iniciadas} cajas · {Number(op.qrs_escaneados).toLocaleString()} QRs</p>
-                    </div>
-                    {op.ultimo_escaneo && (
-                      <span className="text-xs text-zinc-700 shrink-0">
-                        {new Date(op.ultimo_escaneo).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                      </span>
-                    )}
-                  </div>
+                    <span className="text-xs font-semibold tabular-nums text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5">
+                      {c.escaneados}/{c.cantidad_pares}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {incompletas.total > incompletas.cajas.length && (
+                <p className="pt-3 text-xs text-zinc-500">
+                  y {fmtNum(incompletas.total - incompletas.cajas.length)} más
+                </p>
+              )}
+            </>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <Panel className="xl:col-span-2" title="Inventario de códigos QR" subtitle="Se actualiza cada 5 minutos">
+          {!qrs ? (
+            <p className="py-8 text-center text-sm text-zinc-500">Cargando…</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex h-3 rounded-full overflow-hidden bg-zinc-100">
+                {[
+                  ["disponibles", "#d4d4d8"],
+                  ["escaneados", COLOR.principal],
+                  ["enviados", "#7c3aed"],
+                ].map(([k, color]) => (
+                  <div key={k} style={{ width: `${(qrs[k] / qrs.total) * 100}%`, background: color }} />
                 ))}
               </div>
-            )}
-          </div>
-        </div>
+              <dl className="grid grid-cols-3 gap-3">
+                {[
+                  ["Disponibles", qrs.disponibles, "#d4d4d8"],
+                  ["Escaneados", qrs.escaneados, COLOR.principal],
+                  ["Enviados a T4", qrs.enviados, "#7c3aed"],
+                ].map(([label, n, color]) => (
+                  <div key={label}>
+                    <dt className="flex items-center gap-1.5 text-xs text-zinc-500">
+                      <span className="w-2 h-2 rounded-sm" style={{ background: color }} />
+                      {label}
+                    </dt>
+                    <dd className="text-lg font-semibold text-zinc-900 tabular-nums">{fmtNum(n)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+        </Panel>
+
+        <Panel className="xl:col-span-3" title="Últimas lecturas" flush>
+          <ul className="divide-y divide-zinc-100 border-t border-zinc-100">
+            {actividad.map((a, i) => (
+              <li key={i} className="grid grid-cols-[52px_minmax(0,1fr)_150px] items-center gap-4 px-5 py-2">
+                <span className="text-xs text-zinc-500 tabular-nums">{fmtHora(a.fecha_hora)}</span>
+                <span className="font-mono text-xs text-zinc-900 truncate" title={a.codigo_qr}>
+                  {a.codigo_caja || "Embarque"}
+                </span>
+                <span className="text-xs text-zinc-500 truncate text-right">{a.sku_number}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       </div>
     </div>
-  )
+  );
 }

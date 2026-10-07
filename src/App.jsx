@@ -58,7 +58,7 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute roles={["superadmin", "reportes"]}>
             <AppLayout>
               <DashboardPage />
             </AppLayout>
@@ -118,7 +118,7 @@ export default function App() {
       <Route
         path="/admin/reportes"
         element={
-          <ProtectedRoute roles={["superadmin", "operador_po"]}>
+          <ProtectedRoute roles={["superadmin", "operador_po", "reportes"]}>
             <AppLayout>
               <ReportesPage />
             </AppLayout>

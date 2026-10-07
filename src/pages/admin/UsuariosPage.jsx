@@ -25,6 +25,7 @@ const ROL_LABELS = {
   operador_produccion: "Producción",
   operador_embarque: "Embarque",
   operador_po: "Operador PO",
+  reportes: "Consulta de reportes",
 };
 
 const ROL_COLORS = {
@@ -32,6 +33,7 @@ const ROL_COLORS = {
   operador_produccion: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   operador_embarque: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   operador_po: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  reportes: "bg-sky-500/10 text-sky-400 border-sky-500/20",
 };
 
 const EMPTY_FORM = {
@@ -326,6 +328,9 @@ export default function UsuariosPage() {
                 </option>
                 <option value="operador_po" className="bg-zinc-900">
                   Operador PO
+                </option>
+                <option value="reportes" className="bg-zinc-900">
+                  Consulta de reportes (solo Dashboard y Reportes)
                 </option>
                 <option value="superadmin" className="bg-zinc-900">
                   Administrador

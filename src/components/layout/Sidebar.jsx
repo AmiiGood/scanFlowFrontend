@@ -27,6 +27,10 @@ const navByRole = {
     { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders" },
     { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
   ],
+  reportes: [
+    { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
+  ],
   superadmin: [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/admin/usuarios", icon: Users, label: "Usuarios" },
@@ -40,7 +44,40 @@ const navByRole = {
   ],
 };
 
-export default function Sidebar() {
+// Clases de cada tema; el claro es el de las pantallas ya rediseñadas.
+const TEMA = {
+  oscuro: {
+    aside: "bg-zinc-950 border-white/5",
+    linea: "border-white/5",
+    logoCaja: "bg-white/5 border-white/10 text-white",
+    logoTexto: "text-white",
+    activo: "bg-white/10 text-white font-medium",
+    inactivo: "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
+    iconoActivo: "text-white",
+    iconoInactivo: "text-zinc-600 group-hover:text-zinc-400",
+    avatar: "bg-white/10 border-white/10 text-white",
+    nombre: "text-white",
+    rol: "text-zinc-600",
+    salir: "text-zinc-500 hover:text-red-400 hover:bg-red-400/5",
+  },
+  claro: {
+    aside: "bg-white border-zinc-200",
+    linea: "border-zinc-200",
+    logoCaja: "bg-zinc-900 border-zinc-900 text-white",
+    logoTexto: "text-zinc-900",
+    activo: "bg-zinc-100 text-zinc-900 font-medium",
+    inactivo: "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50",
+    iconoActivo: "text-zinc-900",
+    iconoInactivo: "text-zinc-400 group-hover:text-zinc-600",
+    avatar: "bg-zinc-100 border-zinc-200 text-zinc-700",
+    nombre: "text-zinc-900",
+    rol: "text-zinc-500",
+    salir: "text-zinc-600 hover:text-red-700 hover:bg-red-50",
+  },
+};
+
+export default function Sidebar({ claro = false }) {
+  const t = TEMA[claro ? "claro" : "oscuro"];
   const { user, logout } = useAuth();
   const locked = useLockStore((s) => s.locked);
   const nav = navByRole[user?.rol] || [];
@@ -49,20 +86,20 @@ export default function Sidebar() {
     operador_produccion: "Producción",
     operador_embarque: "Embarque",
     operador_po: "Operador PO",
+    reportes: "Consulta de reportes",
     superadmin: "Administrador",
   };
 
   return (
-    <aside className="w-60 shrink-0 h-screen sticky top-0 flex flex-col bg-zinc-950 border-r border-white/5">
+    <aside className={cn("w-60 shrink-0 h-screen sticky top-0 flex flex-col border-r", t.aside)}>
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/5">
-        <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10">
+      <div className={cn("flex items-center gap-2.5 px-5 h-16 border-b", t.linea)}>
+        <div className={cn("inline-flex items-center justify-center w-8 h-8 rounded-lg border", t.logoCaja)}>
           <svg
             width="16"
             height="16"
             viewBox="0 0 24 24"
             fill="none"
-            className="text-white"
           >
             <rect
               x="3"
@@ -102,7 +139,7 @@ export default function Sidebar() {
             />
           </svg>
         </div>
-        <span className="text-white font-semibold tracking-tight">
+        <span className={cn("font-semibold tracking-tight", t.logoTexto)}>
           ScanFlow
         </span>
       </div>
@@ -131,9 +168,7 @@ export default function Sidebar() {
               cn(
                 "group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
                 locked && "pointer-events-none opacity-30",
-                isActive
-                  ? "bg-white/10 text-white font-medium"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
+                isActive ? t.activo : t.inactivo,
               )
             }
           >
@@ -141,15 +176,11 @@ export default function Sidebar() {
               <>
                 <Icon
                   size={16}
-                  className={
-                    isActive
-                      ? "text-white"
-                      : "text-zinc-600 group-hover:text-zinc-400"
-                  }
+                  className={isActive ? t.iconoActivo : t.iconoInactivo}
                 />
                 <span className="flex-1">{label}</span>
                 {isActive && (
-                  <ChevronRight size={12} className="text-zinc-600" />
+                  <ChevronRight size={12} className={t.rol} />
                 )}
               </>
             )}
@@ -158,18 +189,18 @@ export default function Sidebar() {
       </nav>
 
       {/* Usuario */}
-      <div className="px-3 py-4 border-t border-white/5 space-y-0.5">
+      <div className={cn("px-3 py-4 border-t space-y-0.5", t.linea)}>
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
-          <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
-            <span className="text-white text-xs font-medium">
+          <div className={cn("w-7 h-7 rounded-full border flex items-center justify-center shrink-0", t.avatar)}>
+            <span className="text-xs font-medium">
               {user?.nombre?.charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-medium truncate">
+            <p className={cn("text-xs font-medium truncate", t.nombre)}>
               {user?.nombre}
             </p>
-            <p className="text-zinc-600 text-xs truncate">
+            <p className={cn("text-xs truncate", t.rol)}>
               {rolLabel[user?.rol]}
             </p>
           </div>
@@ -178,7 +209,7 @@ export default function Sidebar() {
         <button
           onClick={logout}
           disabled={locked}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-red-400/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:pointer-events-none", t.salir)}
         >
           <LogOut size={16} />
           <span>Cerrar sesión</span>

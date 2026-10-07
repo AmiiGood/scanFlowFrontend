@@ -19,6 +19,16 @@ import {
 } from "lucide-react";
 import * as Tone from "tone";
 
+// Mismo formato que valida el backend: codigoUnico$SKU$pares$secuencial
+// (el secuencial puede traer una letra de prefijo en reimpresiones, ej. R2068).
+const CAJA_RE = /^\d+\$[A-Z0-9-]+\$\d+\$[A-Z]?\d+$/;
+const pareceQR = (valor) => /HTTPS?|CROCS\.COM/i.test(valor);
+const normalizarCaja = (valor) =>
+  valor.replace(/['{]/g, "-").trim().toUpperCase();
+// Una lectura repetida del mismo QR dentro de este lapso se ignora: es el
+// lector disparando dos veces, no un segundo par.
+const VENTANA_REPETIDO_MS = 3000;
+
 function useSound() {
   const beepOk = useCallback(async () => {
     await Tone.start();
@@ -72,6 +82,12 @@ export default function ProduccionPage() {
   const flashTimer = useRef(null);
   const cajaTimer = useRef(null);
   const qrTimer = useRef(null);
+  // Refs para que los temporizadores del lector lean el estado actual y no el
+  // de cuando se programaron.
+  const cajaActivaRef = useRef(null);
+  const cajaEnCursoRef = useRef(null);
+  const qrsEnCursoRef = useRef(new Set());
+  const ultimoQrRef = useRef({ codigo: null, ts: 0 });
   const { beepOk, beepError, beepComplete } = useSound();
 
   const [cajaActiva, setCajaActiva] = useState(null);
@@ -149,6 +165,17 @@ export default function ProduccionPage() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [bloqueado]);
 
+  function activarCaja(caja) {
+    cajaActivaRef.current = caja;
+    setCajaActiva(caja);
+  }
+
+  function rechazar(msg) {
+    beepError();
+    triggerFlash("error");
+    setLastScan({ ok: false, msg });
+  }
+
   const iniciarMut = useMutation({
     mutationFn: iniciarCaja,
     onSuccess: (res) => {
@@ -160,29 +187,34 @@ export default function ProduccionPage() {
         escaneados: 0,
         total: res.data.cantidad_pares,
       });
-      setCajaActiva(res.data);
-      setCodigoCaja("");
+      activarCaja(res.data);
       setScanLog([]);
       setTimeout(() => qrInputRef.current?.focus(), 100);
     },
     onError: (e) => {
-      beepError();
-      triggerFlash("error");
-      setLastScan({
-        ok: false,
-        msg: e.response?.data?.error || "Caja no encontrada",
-      });
-      setCodigoCaja("");
+      rechazar(e.response?.data?.error || "Caja no encontrada");
       setTimeout(() => cajaInputRef.current?.focus(), 50);
+    },
+    onSettled: () => {
+      cajaEnCursoRef.current = null;
     },
   });
 
   const scanMut = useMutation({
     mutationFn: ({ id, codigo_qr }) => escanearQR(id, codigo_qr),
-    onSuccess: (res) => {
+    onSuccess: (res, { codigo_qr }) => {
       const data = res.data;
-      const qrEscaneado = codigoQR;
-      setCodigoQR("");
+      ultimoQrRef.current = { codigo: codigo_qr, ts: Date.now() };
+      setScanLog((prev) => [
+        {
+          ok: true,
+          qr: codigo_qr,
+          n: data.escaneados,
+          total: data.total,
+          ts: new Date(),
+        },
+        ...prev.slice(0, 49),
+      ]);
       if (data.completa) {
         beepComplete();
         triggerFlash("complete");
@@ -193,17 +225,7 @@ export default function ProduccionPage() {
           escaneados: data.escaneados,
           total: data.total,
         });
-        setScanLog((prev) => [
-          {
-            ok: true,
-            qr: qrEscaneado,
-            n: data.escaneados,
-            total: data.total,
-            ts: new Date(),
-          },
-          ...prev.slice(0, 49),
-        ]);
-        setCajaActiva(null);
+        activarCaja(null);
         qc.invalidateQueries(["cajas"]);
         setTimeout(() => {
           setLastScan(null);
@@ -219,75 +241,105 @@ export default function ProduccionPage() {
           escaneados: data.escaneados,
           total: data.total,
         });
-        setScanLog((prev) => [
-          {
-            ok: true,
-            qr: qrEscaneado,
-            n: data.escaneados,
-            total: data.total,
-            ts: new Date(),
-          },
-          ...prev.slice(0, 49),
-        ]);
         refetchProgreso();
         setTimeout(() => qrInputRef.current?.focus(), 30);
       }
     },
-    onError: (e) => {
+    onError: (e, { codigo_qr }) => {
       const msg = e.response?.data?.error || "Error al escanear";
-      const qrEscaneado = codigoQR;
-      beepError();
-      triggerFlash("error");
-      setLastScan({ ok: false, msg });
+      rechazar(msg);
       setScanLog((prev) => [
-        { ok: false, qr: qrEscaneado, msg, ts: new Date() },
+        { ok: false, qr: codigo_qr, msg, ts: new Date() },
         ...prev.slice(0, 49),
       ]);
-      setCodigoQR("");
       setTimeout(() => qrInputRef.current?.focus(), 30);
+    },
+    onSettled: (_data, _err, { codigo_qr }) => {
+      qrsEnCursoRef.current.delete(codigo_qr);
     },
   });
 
+  // Única entrada para una lectura de caja, venga del Enter o del temporizador.
+  // El campo se vacía de inmediato: si el operador escanea el QR mientras la
+  // caja todavía carga, ese QR ya no se pega al código de la caja.
+  function enviarCaja(raw) {
+    clearTimeout(cajaTimer.current);
+    const valor = normalizarCaja(raw || "");
+    setCodigoCaja("");
+    if (!valor || cajaActivaRef.current) return;
+
+    if (cajaEnCursoRef.current) {
+      // La misma etiqueta llegando dos veces (Enter + temporizador): se ignora.
+      if (valor === cajaEnCursoRef.current) return;
+      rechazar(
+        pareceQR(valor)
+          ? "Espera a que cargue la caja y vuelve a escanear el QR"
+          : "Espera, todavía se está cargando la caja",
+      );
+      return;
+    }
+
+    if (!CAJA_RE.test(valor)) {
+      rechazar(
+        pareceQR(valor)
+          ? "Eso es un QR: primero escanea la etiqueta de la caja"
+          : "Formato de caja inválido",
+      );
+      setTimeout(() => cajaInputRef.current?.focus(), 50);
+      return;
+    }
+
+    cajaEnCursoRef.current = valor;
+    iniciarMut.mutate(valor);
+  }
+
+  // Única entrada para una lectura de QR. Descarta la misma lectura repetida
+  // (en curso o recién aceptada) para no mandar dos veces el mismo par.
+  function enviarQR(raw) {
+    clearTimeout(qrTimer.current);
+    const codigo = (raw || "").trim();
+    setCodigoQR("");
+    const caja = cajaActivaRef.current;
+    if (!codigo || !caja) return;
+    if (qrsEnCursoRef.current.has(codigo)) return;
+    const ultimo = ultimoQrRef.current;
+    if (ultimo.codigo === codigo && Date.now() - ultimo.ts < VENTANA_REPETIDO_MS)
+      return;
+
+    qrsEnCursoRef.current.add(codigo);
+    scanMut.mutate({ id: caja.id, codigo_qr: codigo });
+  }
+
   function handleCajaSubmit(e) {
     e.preventDefault();
-    if (!codigoCaja.trim()) return;
-    iniciarMut.mutate(codigoCaja.trim().toUpperCase());
+    enviarCaja(codigoCaja);
   }
 
   function handleQRSubmit(e) {
     e.preventDefault();
-    if (!codigoQR.trim() || !cajaActiva) return;
-    scanMut.mutate({ id: cajaActiva.id, codigo_qr: codigoQR.trim() });
+    enviarQR(codigoQR);
   }
 
   function handleCajaChange(e) {
-    setCodigoCaja(e.target.value);
+    const valor = e.target.value;
+    setCodigoCaja(valor);
     clearTimeout(cajaTimer.current);
-    if (e.target.value.trim()) {
-      cajaTimer.current = setTimeout(() => {
-        if (!cajaActiva) iniciarMut.mutate(e.target.value.trim().toUpperCase());
-      }, 150);
+    if (valor.trim()) {
+      cajaTimer.current = setTimeout(() => enviarCaja(valor), 150);
     }
   }
 
   function handleQRChange(e) {
-    setCodigoQR(e.target.value);
+    const valor = e.target.value;
+    setCodigoQR(valor);
     clearTimeout(qrTimer.current);
-    if (e.target.value.trim()) {
-      qrTimer.current = setTimeout(() => {
-        if (cajaActiva) {
-          scanMut.mutate({
-            id: cajaActiva.id,
-            codigo_qr: e.target.value.trim(),
-          });
-          setCodigoQR("");
-        }
-      }, 150);
+    if (valor.trim()) {
+      qrTimer.current = setTimeout(() => enviarQR(valor), 150);
     }
   }
 
   function resetCaja() {
-    setCajaActiva(null);
+    activarCaja(null);
     setScanLog([]);
     setLastScan(null);
     setCodigoQR("");
@@ -483,7 +535,6 @@ export default function ProduccionPage() {
                 ref={cajaInputRef}
                 value={codigoCaja}
                 onChange={handleCajaChange}
-                onKeyDown={(e) => e.key === "Enter" && handleCajaSubmit(e)}
                 disabled={!!cajaActiva}
                 placeholder="Escanea la caja..."
                 className="border-gray-300 text-gray-900 placeholder:text-gray-300 focus-visible:ring-gray-900 h-11 font-mono text-sm bg-gray-50"
@@ -517,16 +568,6 @@ export default function ProduccionPage() {
                 ref={qrInputRef}
                 value={codigoQR}
                 onChange={handleQRChange}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && codigoQR.trim() && cajaActiva) {
-                    clearTimeout(qrTimer.current);
-                    scanMut.mutate({
-                      id: cajaActiva.id,
-                      codigo_qr: codigoQR.trim(),
-                    });
-                    setCodigoQR("");
-                  }
-                }}
                 disabled={!cajaActiva}
                 placeholder="Escanea el QR del par..."
                 className="border-gray-300 text-gray-900 placeholder:text-gray-300 focus-visible:ring-green-500 h-11 font-mono text-sm bg-gray-50"

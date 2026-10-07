@@ -19,3 +19,8 @@ export const getDetalleCartonesPorPO = (po_id) =>
   api.get(`/reports/po/${po_id}/detalle-cartones`);
 export const getProgresoPO = (po_id) =>
   api.get(`/reports/po/${po_id}/progreso`);
+export const getPOsReporte = (params = {}) =>
+  api.get("/reports/pos", { params });
+export const getDetalleCajas = (params = {}) =>
+  api.get("/reports/detalle-cajas", { params });
+export const getDashboard = () => api.get("/reports/dashboard");
