@@ -1,17 +1,21 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPurchaseOrders } from "@/api/purchaseOrders";
-import { getCartonesPorPO } from "@/api/embarque";
-import { getCajas } from "@/api/cajas";
-import { resetCaja, resetCarton, resetPO } from "@/api/reset";
+import { buscarParaReset, resetCaja, resetCarton, resetPO } from "@/api/reset";
+import { useDebounce } from "@/hooks/useDebounce";
 import PageHeader from "@/components/layout/PageHeader";
-import { Trash2, AlertTriangle, ChevronDown, Box, Package, FileText, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Trash2, AlertTriangle, Box, Package, FileText, CheckCircle2, XCircle, Loader2, Search, X } from "lucide-react";
 
-const TAB_LABELS = [
-  { key: "caja",   label: "Caja",   icon: Box },
-  { key: "carton", label: "Cartón", icon: Package },
-  { key: "po",     label: "PO",     icon: FileText },
+const TABS = [
+  { key: "caja",   label: "Caja",   icon: Box,      placeholder: "Escanea o escribe el código de la caja, o un SKU" },
+  { key: "carton", label: "Cartón", icon: Package,  placeholder: "Escanea o escribe el cartón, o un número de PO" },
+  { key: "po",     label: "PO",     icon: FileText, placeholder: "Escribe el número de PO" },
 ];
+
+const ADVERTENCIA = {
+  caja: "Se borrarán todos los escaneos de la caja y sus QRs volverán a estado disponible. Si estaba en un cartón, el cartón vuelve a pendiente.",
+  carton: "Se borrarán los escaneos de Embarque del cartón, se desligarán sus cajas (vuelven a empacada) y el cartón vuelve a pendiente.",
+  po: "Se resetearán todos los cartones y cajas de la PO. Los QRs volverán a estado disponible y la PO a pendiente.",
+};
 
 const ESTADO_COLORS = {
   abierta:   "text-blue-400",
@@ -23,45 +27,40 @@ const ESTADO_COLORS = {
   cancelado: "text-red-400",
 };
 
+// Una línea de detalle por tipo, para distinguir resultados con códigos parecidos.
+function detalle(tipo, r) {
+  if (tipo === "caja")
+    return `${r.sku_number} · ${r.escaneados}/${r.cantidad_pares} pares · ${r.carton_id ? `cartón ${r.carton_id} (PO ${r.po_number})` : "sin cartón"} · ${r.fecha}`;
+  if (tipo === "carton")
+    return `PO ${r.po_number} · ${r.tipo} · ${r.pares_esperados} pares`;
+  return `${r.cartones_completos}/${r.total_cartones} cartones completos · ${Number(r.cantidad_pares).toLocaleString()} pares`;
+}
+
 export default function ResetPage() {
   const qc = useQueryClient();
-  const [tab, setTab]         = useState("caja");
-  const [poId, setPoId]       = useState("");
-  const [cartonId, setCartonId] = useState("");
-  const [cajaId, setCajaId]   = useState("");
-  const [confirm, setConfirm] = useState(false);
-  const [result, setResult]   = useState(null);
+  const [tab, setTab]           = useState("caja");
+  const [texto, setTexto]       = useState("");
+  const [seleccion, setSeleccion] = useState(null);
+  const [confirm, setConfirm]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const q = useDebounce(texto, 250);
 
-  // POs
-  const { data: pos = [] } = useQuery({
-    queryKey: ["pos-reset"],
-    queryFn: () => getPurchaseOrders().then((r) => r.data.data),
-  });
-
-  // Cartones de la PO seleccionada
-  const { data: cartones = [] } = useQuery({
-    queryKey: ["cartones-reset", poId],
-    queryFn: () => getCartonesPorPO(poId).then((r) => r.data),
-    enabled: !!poId && (tab === "carton"),
-  });
-
-  // Cajas — todas o filtradas
-  const { data: cajasData = [] } = useQuery({
-    queryKey: ["cajas-reset"],
-    queryFn: () => getCajas().then((r) => r.data),
-    enabled: tab === "caja",
+  const { data: resultados = [], isFetching } = useQuery({
+    queryKey: ["reset-buscar", tab, q],
+    queryFn: () => buscarParaReset(tab, q).then((r) => r.data),
+    enabled: !seleccion,
   });
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (tab === "caja")   return resetCaja(cajaId);
-      if (tab === "carton") return resetCarton(cartonId);
-      if (tab === "po")     return resetPO(poId);
+      if (tab === "caja")   return resetCaja(seleccion.id);
+      if (tab === "carton") return resetCarton(seleccion.id);
+      return resetPO(seleccion.id);
     },
     onSuccess: (res) => {
       setResult({ ok: true, data: res.data });
       setConfirm(false);
-      setCajaId(""); setCartonId("");
+      setSeleccion(null);
       qc.invalidateQueries();
     },
     onError: (e) => {
@@ -70,36 +69,24 @@ export default function ResetPage() {
     },
   });
 
-  function canSubmit() {
-    if (tab === "caja")   return !!cajaId;
-    if (tab === "carton") return !!poId && !!cartonId;
-    if (tab === "po")     return !!poId;
-    return false;
-  }
-
-  function getLabel() {
-    if (tab === "caja") {
-      const c = cajasData.find((c) => String(c.id) === cajaId);
-      return c ? `${c.codigo_caja} (${c.sku_number})` : "";
-    }
-    if (tab === "carton") {
-      const c = cartones.find((c) => String(c.id) === cartonId);
-      return c ? `${c.carton_id} (${c.tipo})` : "";
-    }
-    if (tab === "po") {
-      const p = pos.find((p) => String(p.id) === poId);
-      return p ? p.po_number : "";
-    }
-  }
-
   function handleTabChange(key) {
     setTab(key);
-    setPoId(""); setCartonId(""); setCajaId("");
-    setConfirm(false); setResult(null);
+    setTexto("");
+    setSeleccion(null);
+    setConfirm(false);
+    setResult(null);
   }
 
+  function elegir(r) {
+    setSeleccion(r);
+    setConfirm(false);
+    setResult(null);
+  }
+
+  const tabActual = TABS.find((t) => t.key === tab);
+
   return (
-    <div className="p-8 space-y-8 max-w-2xl">
+    <div className="p-8 space-y-6 max-w-3xl">
       <PageHeader
         title="Reset de asociaciones"
         description="Borra los escaneos y resetea estados de cajas, cartones o POs"
@@ -107,14 +94,12 @@ export default function ResetPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white/[0.03] border border-white/5 rounded-xl p-1">
-        {TAB_LABELS.map(({ key, label, icon: Icon }) => (
+        {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === key
-                ? "bg-white/10 text-white"
-                : "text-zinc-500 hover:text-zinc-300"
+              tab === key ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             <Icon size={14} />
@@ -123,95 +108,74 @@ export default function ResetPage() {
         ))}
       </div>
 
-      {/* Selects */}
-      <div className="space-y-4">
-        {/* Selector PO — para carton y po */}
-        {(tab === "carton" || tab === "po") && (
-          <div className="space-y-1.5">
-            <label className="text-xs text-zinc-500 uppercase tracking-wider font-medium">
-              Purchase Order
-            </label>
-            <div className="relative">
-              <select
-                value={poId}
-                onChange={(e) => { setPoId(e.target.value); setCartonId(""); setResult(null); }}
-                className="w-full h-11 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 pr-8 appearance-none focus:outline-none focus:ring-1 focus:ring-white/20"
-              >
-                <option value="" className="bg-zinc-900">Selecciona una PO...</option>
-                {pos.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-zinc-900">
-                    {p.po_number} — {p.estado}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-            </div>
+      {/* Buscador o elemento elegido */}
+      {!seleccion ? (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              autoFocus
+              value={texto}
+              onChange={(e) => { setTexto(e.target.value); setResult(null); }}
+              placeholder={tabActual.placeholder}
+              className="w-full h-11 rounded-lg bg-white/5 border border-white/10 text-white text-sm pl-9 pr-9 font-mono placeholder:font-sans placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/20"
+            />
+            {isFetching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 animate-spin" />}
           </div>
-        )}
-
-        {/* Selector Cartón */}
-        {tab === "carton" && (
-          <div className="space-y-1.5">
-            <label className="text-xs text-zinc-500 uppercase tracking-wider font-medium">
-              Cartón
-            </label>
-            <div className="relative">
-              <select
-                value={cartonId}
-                onChange={(e) => { setCartonId(e.target.value); setResult(null); }}
-                disabled={!poId}
-                className="w-full h-11 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 pr-8 appearance-none focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-40"
-              >
-                <option value="" className="bg-zinc-900">Selecciona un cartón...</option>
-                {cartones.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-zinc-900">
-                    {c.carton_id} — {c.tipo} — {c.estado}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-            </div>
+          <p className="text-xs text-zinc-600">
+            {!q
+              ? "Las 25 más recientes"
+              : resultados.length === 25
+                ? "Primeras 25 coincidencias"
+                : `${resultados.length} ${resultados.length === 1 ? "coincidencia" : "coincidencias"}`}{" "}
+            · elige una para resetearla
+          </p>
+          <div className="rounded-xl border border-white/5 divide-y divide-white/5 overflow-hidden">
+            {resultados.length === 0 && !isFetching ? (
+              <p className="px-4 py-6 text-center text-sm text-zinc-600">Sin coincidencias</p>
+            ) : (
+              resultados.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => elegir(r)}
+                  className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-sm text-white break-all">{r.codigo}</span>
+                    <span className={`text-xs shrink-0 ${ESTADO_COLORS[r.estado] || "text-zinc-400"}`}>{r.estado}</span>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">{detalle(tab, r)}</p>
+                </button>
+              ))
+            )}
           </div>
-        )}
-
-        {/* Selector Caja */}
-        {tab === "caja" && (
-          <div className="space-y-1.5">
-            <label className="text-xs text-zinc-500 uppercase tracking-wider font-medium">
-              Caja
-            </label>
-            <div className="relative">
-              <select
-                value={cajaId}
-                onChange={(e) => { setCajaId(e.target.value); setResult(null); }}
-                className="w-full h-11 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3 pr-8 appearance-none focus:outline-none focus:ring-1 focus:ring-white/20"
-              >
-                <option value="" className="bg-zinc-900">Selecciona una caja...</option>
-                {cajasData.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-zinc-900">
-                    {c.sku_number} — {c.codigo_caja} — {c.estado}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-            </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-1">{tabActual.label} seleccionada</p>
+            <p className="font-mono text-sm text-white break-all">{seleccion.codigo}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              <span className={ESTADO_COLORS[seleccion.estado] || "text-zinc-400"}>{seleccion.estado}</span> · {detalle(tab, seleccion)}
+            </p>
           </div>
-        )}
-      </div>
+          <button
+            onClick={() => { setSeleccion(null); setConfirm(false); }}
+            className="shrink-0 flex items-center gap-1 text-xs text-zinc-500 hover:text-white"
+          >
+            <X size={13} /> Cambiar
+          </button>
+        </div>
+      )}
 
       {/* Advertencia + confirmación */}
-      {canSubmit() && !result && (
+      {seleccion && !result && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-amber-400 font-medium">Esta acción no se puede deshacer</p>
-              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                {tab === "caja" && "Se borrarán todos los escaneos de la caja y los QRs volverán a estado disponible."}
-                {tab === "carton" && "Se borrarán los escaneos musicales del cartón, se desligarán las cajas y volverán a estado empacada."}
-                {tab === "po" && "Se resetearán todos los cartones y cajas de la PO. Los QRs volverán a estado disponible."}
-              </p>
-              <p className="text-xs text-white/60 mt-2 font-mono">{getLabel()}</p>
+              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{ADVERTENCIA[tab]}</p>
             </div>
           </div>
 
@@ -249,9 +213,7 @@ export default function ResetPage() {
       {/* Resultado */}
       {result && (
         <div className={`rounded-xl border p-5 space-y-3 ${
-          result.ok
-            ? "border-emerald-500/20 bg-emerald-500/5"
-            : "border-red-500/20 bg-red-500/5"
+          result.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
         }`}>
           <div className="flex items-center gap-2">
             {result.ok
@@ -273,7 +235,7 @@ export default function ResetPage() {
             </div>
           )}
           <button
-            onClick={() => setResult(null)}
+            onClick={() => { setResult(null); setTexto(""); }}
             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
             Hacer otro reset

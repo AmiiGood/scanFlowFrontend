@@ -5,20 +5,22 @@ import {
   getProduccionPorDia,
   getTrazabilidadQR,
   getCajasPorSKU,
-  getQrsSinSKU,
+  getQrsSinSKUPorUPC,
   getHistorialEnviosT4,
   getCartonesPendientesPorPO,
   getDetalleCartonesPorPO,
   getPOsReporte,
   getDetalleCajas,
 } from "@/api/reports";
-import { exportToExcel } from "@/lib/exportExcel";
+import { getLiberaciones } from "@/api/supervisores";
+import { exportConTipos, exportToExcel } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Search, X } from "lucide-react";
 import {
   BarraAvance,
   Boton,
+  Kpi,
   BotonExportar,
   Campo,
   Estado,
@@ -30,7 +32,7 @@ import {
 } from "@/components/reportes/kit";
 import { GraficaBarras, Leyenda } from "@/components/reportes/graficas";
 import { COLOR, inputCls, td, tdMono, tdNum, th, thNum } from "@/components/reportes/estilos";
-import { fmtFecha, fmtFechaHora, fmtNum } from "@/lib/formato";
+import { fmtFecha, fmtFechaHora, fmtHora12, fmtNum } from "@/lib/formato";
 
 const TABS = [
   { id: "produccion", label: "Producción por día" },
@@ -41,6 +43,7 @@ const TABS = [
   { id: "detalle-cajas", label: "Detalle Caja-QR" },
   { id: "sin-sku", label: "QRs sin SKU" },
   { id: "envios", label: "Historial T4" },
+  { id: "liberaciones", label: "Liberaciones" },
 ];
 
 // Mantiene la página anterior visible mientras llega la siguiente.
@@ -721,8 +724,27 @@ function TabDetallePO() {
 }
 
 // --- Tab: Detalle Caja-QR ---
+// Columnas del reporte, en el mismo orden en pantalla y en Excel.
+const COLUMNAS_CAJA_QR = [
+  { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
+  { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
+  { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
+  { titulo: "token", valor: (r) => r.token, ancho: 16 },
+  { titulo: "caja", valor: (r) => r.codigo_caja, ancho: 34 },
+  { titulo: "sku", valor: (r) => r.sku_number, ancho: 18 },
+  { titulo: "talla", valor: (r) => r.size, ancho: 8 },
+];
+
+// Fecha local de hoy en formato de <input type="date">.
+function hoyLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function TabDetalleCajas() {
-  const [filters, setFilters] = useState({ codigo: "", sku: "", po_number: "", estado: "", fecha_desde: "", fecha_hasta: "" });
+  // Arranca en el día de hoy: sin fechas, la primera página serían los
+  // escaneos más viejos.
+  const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -750,25 +772,8 @@ function TabDetalleCajas() {
     setExporting(true);
     try {
       const res = await getDetalleCajas({ ...debouncedFilters, all: 1 });
-      exportToExcel(
-        (res.data.data || []).map((r) => ({
-          "Código Caja": r.codigo_caja,
-          "Estado Caja": r.caja_estado,
-          "Pares Caja": r.cantidad_pares,
-          "Caja abierta": fmtFechaHora(r.caja_abierta_at),
-          SKU: r.sku_number,
-          Producto: r.style_name || "",
-          Talla: r.size || "",
-          Color: r.color_name || "",
-          "Código QR": r.codigo_qr,
-          UPC: r.upc,
-          "Estado QR": r.qr_estado,
-          "Fecha y hora escaneo": fmtFechaHora(r.escaneado_at),
-          Cartón: r.carton_id || "",
-          PO: r.po_number || "",
-        })),
-        "detalle-caja-qr",
-      );
+      const rango = [filters.fecha_desde, filters.fecha_hasta].filter(Boolean).join("_a_");
+      exportConTipos(COLUMNAS_CAJA_QR, res.data.data || [], `detalle-caja-qr${rango ? "-" + rango : ""}`);
     } finally {
       setExporting(false);
     }
@@ -812,44 +817,28 @@ function TabDetalleCajas() {
         <Tabla>
           <thead>
             <tr>
-              <th className={th}>Caja</th>
-              <th className={th}>SKU</th>
-              <th className={th}>Código QR</th>
-              <th className={th}>Escaneado</th>
-              <th className={th}>Cartón / PO</th>
+              {COLUMNAS_CAJA_QR.map((c) => (
+                <th key={c.titulo} className={th}>{c.titulo}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <FilaMensaje cols={5}>Cargando…</FilaMensaje>
+              <FilaMensaje cols={7}>Cargando…</FilaMensaje>
             ) : filas.length === 0 ? (
-              <FilaMensaje cols={5}>Sin escaneos con estos filtros</FilaMensaje>
+              <FilaMensaje cols={7}>Sin escaneos con estos filtros</FilaMensaje>
             ) : (
-              filas.map((r, i) => {
-                // La caja se muestra solo en su primera fila de la página.
-                const nuevaCaja = i === 0 || filas[i - 1].caja_id !== r.caja_id;
-                return (
-                  <tr key={`${r.caja_id}-${r.codigo_qr}`} className={cn("hover:bg-zinc-50", nuevaCaja && i > 0 && "[&>td]:border-t [&>td]:border-t-zinc-300")}>
-                    <td className={cn(td, "align-top")}>
-                      {nuevaCaja && (
-                        <>
-                          <div className="font-mono text-xs text-zinc-900">{r.codigo_caja}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Estado valor={r.caja_estado} />
-                            <span className="text-xs text-zinc-500 tabular-nums">{r.cantidad_pares} pares · {fmtFechaHora(r.caja_abierta_at)}</span>
-                          </div>
-                        </>
-                      )}
-                    </td>
-                    <td className={cn(td, "font-mono text-xs")}>{r.sku_number}</td>
-                    <td className={cn(td, "font-mono text-[11px] text-zinc-500 break-all")}>{r.codigo_qr}</td>
-                    <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.escaneado_at)}</td>
-                    <td className={cn(td, "font-mono text-xs")}>
-                      {r.carton_id ? (<><div className="text-zinc-900">{r.carton_id}</div><div className="text-zinc-500">{r.po_number}</div></>) : <span className="text-zinc-400 font-sans">Sin embarcar</span>}
-                    </td>
-                  </tr>
-                );
-              })
+              filas.map((r) => (
+                <tr key={`${r.caja_id}-${r.codigo_qr}`} className="hover:bg-zinc-50">
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtFecha(r.escaneado_at)}</td>
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
+                  <td className={cn(td, "font-mono text-[11px] text-zinc-500 whitespace-nowrap")}>{r.codigo_qr}</td>
+                  <td className={cn(td, "font-mono text-xs text-zinc-900")}>{r.token}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.sku_number}</td>
+                  <td className={cn(td, "text-xs")}>{r.size}</td>
+                </tr>
+              ))
             )}
           </tbody>
         </Tabla>
@@ -860,62 +849,92 @@ function TabDetalleCajas() {
 }
 
 // --- Tab: QRs sin SKU ---
-function TabQRsSinSKU() {
-  const [page, setPage] = useState(1);
+// Agrupados por UPC: lo que hay que resolver es cada UPC, no cada QR.
+const SITUACION = {
+  vincular: ["Solo falta vincular", "bg-emerald-50 text-emerald-700 border-emerald-200"],
+  ceros: ["UPC con ceros distintos", "bg-amber-50 text-amber-800 border-amber-200"],
+  cargar: ["Falta cargar el SKU", "bg-zinc-100 text-zinc-700 border-zinc-200"],
+};
+const situacion = (r) => (r.ya_esta_en_skus ? "vincular" : r.upc_en_skus ? "ceros" : "cargar");
 
+function TabQRsSinSKU() {
   const { data, isLoading } = useQuery({
-    queryKey: ["qrs-sin-sku", page],
-    queryFn: () => getQrsSinSKU({ page, limit: 100 }).then((r) => r.data),
-    placeholderData: conservar,
+    queryKey: ["qrs-sin-sku-upcs"],
+    queryFn: () => getQrsSinSKUPorUPC().then((r) => r.data),
   });
+  const filas = data?.data || [];
+  const cuenta = (k) => filas.filter((r) => situacion(r) === k).length;
 
   function handleExport() {
     exportToExcel(
-      (data?.data || []).map((r) => ({
-        "Código QR": r.codigo_qr,
+      filas.map((r) => ({
         UPC: r.upc,
-        Estado: r.estado,
-        "Fecha Importación": new Date(r.created_at).toLocaleString("es-MX"),
+        QRs: r.qrs,
+        Disponibles: r.disponibles,
+        "Primer import": fmtFecha(r.primer_import),
+        "Último import": fmtFecha(r.ultimo_import),
+        "Qué falta": SITUACION[situacion(r)][0],
+        "UPC parecido en SKUs": r.upc_en_skus || "",
       })),
-      "qrs-sin-sku",
+      "upcs-sin-sku",
     );
   }
 
   return (
-    <Panel
-      title={data ? `${fmtNum(data.total)} QRs sin SKU asignado` : "Cargando…"}
-      subtitle="Su UPC no está en el catálogo. Al cargar el SKU, usa «Vincular QRs huérfanos» en Importar QRs."
-      actions={<BotonExportar onClick={handleExport} disabled={!data?.data?.length}>Exportar página</BotonExportar>}
-      flush
-    >
-      <Tabla>
-        <thead>
-          <tr>
-            <th className={th}>Código QR</th>
-            <th className={th}>UPC</th>
-            <th className={th}>Estado</th>
-            <th className={th}>Importado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading ? (
-            <FilaMensaje cols={4}>Cargando…</FilaMensaje>
-          ) : !data?.data?.length ? (
-            <FilaMensaje cols={4}>Todos los QRs tienen SKU asignado</FilaMensaje>
-          ) : (
-            data.data.map((r) => (
-              <tr key={r.id} className="hover:bg-zinc-50">
-                <td className={cn(tdMono, "truncate max-w-md")}>{r.codigo_qr}</td>
-                <td className={cn(td, "font-mono text-xs")}>{r.upc}</td>
-                <td className={td}><Estado valor={r.estado} /></td>
-                <td className={cn(td, "text-zinc-500 tabular-nums")}>{new Date(r.created_at).toLocaleDateString("es-MX")}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </Tabla>
-      <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={100} onPage={setPage} />
-    </Panel>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <Kpi label="UPCs sin SKU" value={fmtNum(data?.total_upcs)} hint={`${fmtNum(data?.total_qrs)} QRs sin poder escanearse`} />
+        <Kpi label="Falta cargar el SKU" value={fmtNum(cuenta("cargar"))} hint="Agrégalos con la plantilla de SKUs" />
+        <Kpi label="UPC con ceros distintos" value={fmtNum(cuenta("ceros"))} hint="Corrige el UPC en el catálogo" tone={cuenta("ceros") ? "alerta" : "normal"} hintTone={cuenta("ceros") ? "alerta" : "neutral"} />
+        <Kpi label="Solo falta vincular" value={fmtNum(cuenta("vincular"))} hint="Importar QRs › Vincular QRs huérfanos" />
+      </div>
+
+      <Panel
+        title="UPCs de los QRs sin SKU"
+        subtitle="Un QR sin SKU no se puede escanear en Producción («El UPC del QR no corresponde al SKU de la caja»)."
+        actions={<BotonExportar onClick={handleExport} disabled={!filas.length} />}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>UPC</th>
+              <th className={thNum}>QRs</th>
+              <th className={thNum}>Disponibles</th>
+              <th className={th}>Importados</th>
+              <th className={th}>Qué falta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={5}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={5}>Todos los QRs tienen SKU asignado</FilaMensaje>
+            ) : (
+              filas.map((r) => {
+                const [texto, cls] = SITUACION[situacion(r)];
+                return (
+                  <tr key={r.upc} className="hover:bg-zinc-50">
+                    <td className={tdMono}>{r.upc}</td>
+                    <td className={cn(tdNum, "font-medium text-zinc-900")}>{fmtNum(r.qrs)}</td>
+                    <td className={tdNum}>{fmtNum(r.disponibles)}</td>
+                    <td className={cn(td, "text-xs text-zinc-500 tabular-nums whitespace-nowrap")}>
+                      {r.primer_import === r.ultimo_import ? fmtFecha(r.primer_import) : `${fmtFecha(r.primer_import)} a ${fmtFecha(r.ultimo_import)}`}
+                    </td>
+                    <td className={td}>
+                      <span className={cn("inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium whitespace-nowrap", cls)}>{texto}</span>
+                      {r.upc_en_skus && (
+                        <span className="ml-2 text-xs text-zinc-500">en SKUs: <span className="font-mono">{r.upc_en_skus}</span></span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </Tabla>
+      </Panel>
+    </div>
   );
 }
 
@@ -1004,6 +1023,108 @@ function TabEnviosT4() {
   );
 }
 
+// --- Tab: Liberaciones de caja ---
+function TabLiberaciones() {
+  const [filters, setFilters] = useState({ fecha_desde: "", fecha_hasta: "" });
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["liberaciones", filters, page],
+    queryFn: () => getLiberaciones({ ...filters, page, limit: 50 }).then((r) => r.data),
+    placeholderData: conservar,
+  });
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await getLiberaciones({ ...filters, all: 1 });
+      exportToExcel(
+        (res.data.data || []).map((r) => ({
+          "Fecha y hora": fmtFechaHora(r.fecha_hora),
+          "Código Caja": r.codigo_caja,
+          SKU: r.sku_number || "",
+          "Pares escaneados": r.pares_escaneados,
+          "Pares de la caja": r.cantidad_pares,
+          Motivo: r.motivo_texto,
+          Comentario: r.comentario || "",
+          Supervisor: r.supervisor,
+          "Sesión": r.liberado_por || "",
+          "Estado actual de la caja": r.caja_estado || "",
+        })),
+        "liberaciones-de-caja",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const filas = data?.data || [];
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+          <Campo label="Desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
+        </div>
+      </Panel>
+      <Panel
+        title={`${fmtNum(data?.total)} cajas liberadas por un supervisor`}
+        subtitle="Cajas que se dejaron incompletas con el bloqueo activo. Siguen abiertas hasta completarlas o resetearlas."
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} />}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>Fecha y hora</th>
+              <th className={th}>Caja</th>
+              <th className={thNum}>Pares</th>
+              <th className={th}>Motivo</th>
+              <th className={th}>Supervisor</th>
+              <th className={th}>Caja hoy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={6}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={6}>No hay liberaciones en este periodo</FilaMensaje>
+            ) : (
+              filas.map((r) => (
+                <tr key={r.id} className="align-top hover:bg-zinc-50">
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
+                  <td className={cn(td, "font-mono text-xs")}>
+                    <div className="text-zinc-900">{r.codigo_caja}</div>
+                    <div className="text-zinc-500">{r.sku_number}</div>
+                  </td>
+                  <td className={cn(tdNum, "text-amber-700 font-medium")}>{r.pares_escaneados}/{r.cantidad_pares}</td>
+                  <td className={td}>
+                    <div className="text-zinc-900">{r.motivo_texto}</div>
+                    {r.comentario && <div className="text-xs text-zinc-500 mt-0.5 max-w-sm">{r.comentario}</div>}
+                  </td>
+                  <td className={cn(td, "text-zinc-900")}>{r.supervisor}</td>
+                  <td className={td}>{r.caja_estado ? <Estado valor={r.caja_estado} /> : "—"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={50} onPage={setPage} />
+      </Panel>
+    </div>
+  );
+}
+
 // --- Página principal ---
 const TAB_CONTENT = {
   produccion: TabProduccion,
@@ -1014,6 +1135,7 @@ const TAB_CONTENT = {
   "detalle-cajas": TabDetalleCajas,
   "sin-sku": TabQRsSinSKU,
   envios: TabEnviosT4,
+  liberaciones: TabLiberaciones,
 };
 
 export default function ReportesPage() {
@@ -1028,13 +1150,13 @@ export default function ReportesPage() {
 
       {/* El borde inferior va como sombra interna: un border-b con -mb-px en las
           pestañas desborda 1 px y hace aparecer una barra de scroll vertical. */}
-      <nav className="flex items-center gap-1 mb-5 overflow-x-auto shadow-[inset_0_-1px_0_#e4e4e7]">
+      <nav className="flex items-center mb-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_-1px_0_#e4e4e7]">
         {TABS.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setParams({ tab: id })}
             className={cn(
-              "px-3 py-2.5 text-sm whitespace-nowrap border-b-2",
+              "px-2.5 py-2.5 text-sm whitespace-nowrap border-b-2",
               activeTab === id
                 ? "border-blue-600 text-zinc-900 font-medium"
                 : "border-transparent text-zinc-500 hover:text-zinc-900",

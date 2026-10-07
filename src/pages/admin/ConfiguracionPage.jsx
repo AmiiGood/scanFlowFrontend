@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getConfig, updateConfig } from "@/api/config";
 import PageHeader from "@/components/layout/PageHeader";
+import SupervisoresPanel from "@/components/admin/SupervisoresPanel";
 import { Lock, ShieldAlert, Loader2 } from "lucide-react";
 
 export default function ConfiguracionPage() {
@@ -87,12 +88,15 @@ export default function ConfiguracionPage() {
           <ShieldAlert size={16} className="text-amber-400 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-200/80 leading-relaxed">
             Con el bloqueo activo, un operador que inicie una caja deberá
-            completarla sí o sí. Si necesitan liberar a un operador atascado,
-            desactiva este interruptor: las pantallas de producción se
-            desbloquean automáticamente en unos segundos.
+            completarla. Si se queda atascado, un supervisor de la lista de
+            abajo la libera desde Producción con su gafete. Para soltar todas
+            las pantallas a la vez, desactiva este interruptor: se desbloquean
+            solas en unos segundos.
           </p>
         </div>
       )}
+
+      <SupervisoresPanel />
     </div>
   );
 }

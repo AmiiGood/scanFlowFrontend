@@ -16,4 +16,12 @@ export function fmtHora(valor) {
   return valor ? valor.slice(11, 16) : "—";
 }
 
+// "2026-10-05 00:24:03" → "12:24:03 a. m."
+export function fmtHora12(valor) {
+  if (!valor) return "—";
+  const [h, m, s] = valor.slice(11, 19).split(":");
+  const hora = Number(h);
+  return `${hora % 12 || 12}:${m}:${s} ${hora < 12 ? "a. m." : "p. m."}`;
+}
+
 export const fmtNum = (n) => Number(n || 0).toLocaleString("es-MX");

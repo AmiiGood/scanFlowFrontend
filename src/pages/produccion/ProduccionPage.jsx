@@ -9,6 +9,7 @@ import {
 import { getConfig } from "@/api/config";
 import { useLockStore } from "@/store/lockStore";
 import { Input } from "@/components/ui/input";
+import LiberarCajaModal from "@/components/produccion/LiberarCajaModal";
 import {
   ScanLine,
   Box,
@@ -16,6 +17,7 @@ import {
   XCircle,
   RotateCcw,
   Lock,
+  Unlock,
 } from "lucide-react";
 import * as Tone from "tone";
 
@@ -96,8 +98,11 @@ export default function ProduccionPage() {
   const [flash, setFlash] = useState(null);
   const [lastScan, setLastScan] = useState(null);
   const [scanLog, setScanLog] = useState([]);
+  const [liberando, setLiberando] = useState(false);
 
   useEffect(() => {
+    // Con la ventana de liberación abierta, el foco es suyo (gafete, motivo).
+    if (liberando) return;
     function handleFocusLost() {
       setTimeout(() => {
         const active = document.activeElement;
@@ -116,7 +121,7 @@ export default function ProduccionPage() {
       document.removeEventListener("click", handleFocusLost);
       document.removeEventListener("focusout", handleFocusLost);
     };
-  }, [cajaActiva]);
+  }, [cajaActiva, liberando]);
 
   const triggerFlash = (type) => {
     clearTimeout(flashTimer.current);
@@ -346,6 +351,14 @@ export default function ProduccionPage() {
     setTimeout(() => cajaInputRef.current?.focus(), 100);
   }
 
+  function cajaLiberada(supervisor) {
+    setLiberando(false);
+    resetCaja();
+    beepOk();
+    triggerFlash("ok");
+    setLastScan({ ok: true, msg: `CAJA LIBERADA POR ${supervisor.toUpperCase()}` });
+  }
+
   const escaneados = progreso?.escaneados || 0;
   const totalPares =
     cajaActiva?.cantidad_pares || progreso?.caja?.cantidad_pares || 0;
@@ -413,9 +426,17 @@ export default function ProduccionPage() {
         </div>
         {cajaActiva &&
           (bloqueado ? (
-            <span className="flex items-center gap-1.5 text-sm text-amber-600 font-semibold">
-              <Lock size={14} /> Caja bloqueada hasta completar
-            </span>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-sm text-amber-600 font-semibold">
+                <Lock size={14} /> Caja bloqueada hasta completar
+              </span>
+              <button
+                onClick={() => setLiberando(true)}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                <Unlock size={14} /> Liberar caja
+              </button>
+            </div>
           ) : (
             <button
               onClick={resetCaja}
@@ -631,6 +652,15 @@ export default function ProduccionPage() {
           </div>
         )}
       </div>
+
+      {liberando && cajaActiva && (
+        <LiberarCajaModal
+          caja={cajaActiva}
+          escaneados={escaneados}
+          onClose={() => setLiberando(false)}
+          onLiberada={cajaLiberada}
+        />
+      )}
     </div>
   );
 }
