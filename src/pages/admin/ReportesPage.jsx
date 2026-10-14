@@ -728,6 +728,7 @@ function TabDetallePO() {
 const COLUMNAS_CAJA_QR = [
   { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
   { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
+  { titulo: "turno", valor: (r) => r.turno, ancho: 10 },
   { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
   { titulo: "token", valor: (r) => r.token, ancho: 16 },
   { titulo: "caja", valor: (r) => r.codigo_caja, ancho: 34 },
@@ -744,7 +745,7 @@ function hoyLocal() {
 function TabDetalleCajas() {
   // Arranca en el día de hoy: sin fechas, la primera página serían los
   // escaneos más viejos.
-  const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
+  const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", turno: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -753,6 +754,7 @@ function TabDetalleCajas() {
     sku: useDebounce(filters.sku, 300),
     po_number: useDebounce(filters.po_number, 300),
     estado: filters.estado,
+    turno: filters.turno,
     fecha_desde: filters.fecha_desde,
     fecha_hasta: filters.fecha_hasta,
   };
@@ -773,7 +775,8 @@ function TabDetalleCajas() {
     try {
       const res = await getDetalleCajas({ ...debouncedFilters, all: 1 });
       const rango = [filters.fecha_desde, filters.fecha_hasta].filter(Boolean).join("_a_");
-      exportConTipos(COLUMNAS_CAJA_QR, res.data.data || [], `detalle-caja-qr${rango ? "-" + rango : ""}`);
+      const sufijo = [rango, filters.turno && `turno-${filters.turno}`].filter(Boolean).join("-");
+      exportConTipos(COLUMNAS_CAJA_QR, res.data.data || [], `detalle-caja-qr${sufijo ? "-" + sufijo : ""}`);
     } finally {
       setExporting(false);
     }
@@ -783,7 +786,7 @@ function TabDetalleCajas() {
   return (
     <div className="space-y-4">
       <Panel>
-        <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 pt-5">
+        <div className="grid grid-cols-2 lg:grid-cols-8 gap-3 pt-5">
           <Campo label="Código de caja" className="col-span-2">
             <input value={filters.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Todo o parte del código" className={cn(inputCls, "font-mono")} />
           </Campo>
@@ -806,6 +809,14 @@ function TabDetalleCajas() {
           <Campo label="Hasta">
             <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
           </Campo>
+          <Campo label="Turno">
+            <select value={filters.turno} onChange={(e) => set("turno", e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              <option value="A">A · 08:00–16:00</option>
+              <option value="B">B · 16:00–24:00</option>
+              <option value="C">C · 00:00–08:00</option>
+            </select>
+          </Campo>
         </div>
       </Panel>
 
@@ -824,14 +835,15 @@ function TabDetalleCajas() {
           </thead>
           <tbody>
             {isLoading ? (
-              <FilaMensaje cols={7}>Cargando…</FilaMensaje>
+              <FilaMensaje cols={COLUMNAS_CAJA_QR.length}>Cargando…</FilaMensaje>
             ) : filas.length === 0 ? (
-              <FilaMensaje cols={7}>Sin escaneos con estos filtros</FilaMensaje>
+              <FilaMensaje cols={COLUMNAS_CAJA_QR.length}>Sin escaneos con estos filtros</FilaMensaje>
             ) : (
               filas.map((r) => (
                 <tr key={`${r.caja_id}-${r.codigo_qr}`} className="hover:bg-zinc-50">
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtFecha(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
+                  <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
                   <td className={cn(td, "font-mono text-[11px] text-zinc-500 whitespace-nowrap")}>{r.codigo_qr}</td>
                   <td className={cn(td, "font-mono text-xs text-zinc-900")}>{r.token}</td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja}</td>
