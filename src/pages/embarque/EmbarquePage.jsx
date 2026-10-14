@@ -20,6 +20,13 @@ import {
 } from "lucide-react";
 import * as Tone from "tone";
 
+// Etiqueta de caja (mismo formato que valida el backend):
+// codigoUnico$SKU$pares$secuencial. Sirve para distinguirla de un QR cuando
+// el cartón parcial acepta las dos cosas en el mismo campo.
+const CAJA_RE = /^\d+\$[A-Z0-9-]+\$\d+\$[A-Z]?\d+$/;
+const esEtiquetaCaja = (valor) =>
+  CAJA_RE.test(valor.replace(/['{]/g, "-").trim().toUpperCase());
+
 function getModoEscaneo(carton) {
   if (!carton) return null;
   if (carton.tipo === "musical") return "qr";
@@ -299,7 +306,7 @@ export default function EmbarquePage() {
           carton.tipo === "musical"
             ? "MUSICAL — Escanea QRs"
             : esParcialNuevo
-              ? "PARCIAL — Escanea QRs"
+              ? "PARCIAL — Escanea la caja o los QRs"
               : "MONO SKU — Escanea la caja",
         tipo: carton.tipo,
       });
@@ -317,6 +324,11 @@ export default function EmbarquePage() {
     },
   });
 
+  function enfocarEntrada() {
+    const ref = modoEscaneo === "caja" ? cajaInputRef : qrInputRef;
+    setTimeout(() => ref.current?.focus(), 50);
+  }
+
   const buscarCajaMut = useMutation({
     mutationFn: (codigo) => buscarCajaPorCodigo(codigo),
     onSuccess: (res) => {
@@ -325,14 +337,14 @@ export default function EmbarquePage() {
         beepError();
         triggerFlash("error");
         setLastScan({ ok: false, msg: "La caja no está empacada" });
-        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        enfocarEntrada();
         return;
       }
       if (caja.carton_id) {
         beepError();
         triggerFlash("error");
         setLastScan({ ok: false, msg: "Caja ya asignada a otro cartón" });
-        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        enfocarEntrada();
         return;
       }
       asignarMut.mutate(caja.id);
@@ -344,7 +356,7 @@ export default function EmbarquePage() {
         ok: false,
         msg: e.response?.data?.error || "Caja no encontrada",
       });
-      setTimeout(() => cajaInputRef.current?.focus(), 50);
+      enfocarEntrada();
     },
   });
 
@@ -352,8 +364,29 @@ export default function EmbarquePage() {
     mutationFn: (caja_id) => asignarCaja(cartonActivo.id, caja_id),
     onSuccess: (res) => {
       const data = res.data || {};
+      // Cartón parcial: la caja aportó pares pero todavía faltan.
+      if (data.modo === "parcial" && !data.completo) {
+        beepOk();
+        triggerFlash("ok");
+        setLastScan({
+          ok: true,
+          msg: `+${data.pares_asignados} PARES DE LA CAJA`,
+          escaneados: data.pares_en_carton,
+          total: data.total,
+        });
+        setScanLog((prev) => [
+          { ok: true, qr: `Caja: ${data.pares_asignados} pares`, n: data.pares_en_carton, total: data.total, ts: new Date() },
+          ...prev.slice(0, 49),
+        ]);
+        refetchProgreso();
+        refetchResumenPO();
+        enfocarEntrada();
+        return;
+      }
       const paresRestantes =
-        data.modo === "split" ? (data.pares_restantes ?? 0) : 0;
+        data.modo === "split" || data.modo === "parcial"
+          ? (data.pares_restantes ?? 0)
+          : 0;
       beepComplete();
       triggerFlash("complete");
       setLastScan({
@@ -382,7 +415,7 @@ export default function EmbarquePage() {
         ok: false,
         msg: e.response?.data?.error || "Error al asignar caja",
       });
-      setTimeout(() => cajaInputRef.current?.focus(), 50);
+      enfocarEntrada();
     },
   });
 
@@ -476,16 +509,37 @@ export default function EmbarquePage() {
     }
   }
 
+  // En un cartón parcial el campo acepta la etiqueta de una caja (toma los
+  // pares que falten) o el QR de un par. En uno musical, solo QRs.
+  function procesarLecturaQR(valor) {
+    const v = valor.trim();
+    if (!v) return;
+    if (esEtiquetaCaja(v)) {
+      if (cartonActivo?.tipo === "musical") {
+        beepError();
+        triggerFlash("error");
+        setLastScan({ ok: false, msg: "Cartón musical: escanea los QRs uno por uno" });
+        enfocarEntrada();
+        return;
+      }
+      buscarCajaMut.mutate(normalizarCodigo(v));
+      return;
+    }
+    reasociarMut.mutate(v);
+  }
+
   function handleQRChange(e) {
     setCodigoQR(e.target.value);
     clearTimeout(scanTimer.current);
     if (e.target.value.trim()) {
+      const valor = e.target.value;
       scanTimer.current = setTimeout(() => {
-        reasociarMut.mutate(e.target.value.trim());
+        procesarLecturaQR(valor);
         setCodigoQR("");
       }, 150);
     }
   }
+
 
   function resetCarton() {
     setCartonActivo(null);
@@ -626,7 +680,9 @@ export default function EmbarquePage() {
                 ? "Escanea el código del cartón para comenzar"
                 : modoEscaneo === "caja"
                   ? "Escanea la caja empacada"
-                  : "Escanea QRs del cartón"}
+                  : esParcial
+                    ? "Escanea una caja (toma los pares que falten) o los QRs uno por uno"
+                    : "Escanea QRs del cartón"}
             </p>
           </div>
         )}
@@ -808,7 +864,7 @@ export default function EmbarquePage() {
                 2
               </div>
               <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-                Código QR
+                {esParcial ? "Caja o código QR" : "Código QR"}
               </span>
             </div>
             <Input
@@ -818,11 +874,11 @@ export default function EmbarquePage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && codigoQR.trim()) {
                   clearTimeout(scanTimer.current);
-                  reasociarMut.mutate(codigoQR.trim());
+                  procesarLecturaQR(codigoQR);
                   setCodigoQR("");
                 }
               }}
-              placeholder="Escanea el QR del par..."
+              placeholder={esParcial ? "Escanea la caja o el QR del par..." : "Escanea el QR del par..."}
               className="border-gray-300 text-gray-900 placeholder:text-gray-300 focus-visible:ring-amber-400 h-11 font-mono text-sm bg-gray-50"
             />
           </div>
