@@ -21,8 +21,8 @@ import {
 import * as Tone from "tone";
 
 // Etiqueta de caja (mismo formato que valida el backend):
-// codigoUnico$SKU$pares$secuencial. Sirve para distinguirla de un QR cuando
-// el cartón parcial acepta las dos cosas en el mismo campo.
+// codigoUnico$SKU$pares$secuencial. Sirve para distinguirla de un QR en el
+// cartón de 6, que acepta las dos cosas en el mismo campo.
 const CAJA_RE = /^\d+\$[A-Z0-9-]+\$\d+\$[A-Z]?\d+$/;
 const esEtiquetaCaja = (valor) =>
   CAJA_RE.test(valor.replace(/['{]/g, "-").trim().toUpperCase());
@@ -230,6 +230,10 @@ export default function EmbarquePage() {
   const modoEscaneo = getModoEscaneo(cartonActivo);
   const esParcial =
     cartonActivo?.tipo === "mono_sku" && modoEscaneo === "qr";
+  // Solo el cartón de 6 acepta caja: aporta una cama de 6 pares.
+  const paresCarton =
+    cartonActivo?.detalles?.reduce((s, d) => s + d.cantidad_esperada, 0) || 0;
+  const aceptaCama = esParcial && paresCarton === 6;
 
   const triggerFlash = (type) => {
     clearTimeout(flashTimer.current);
@@ -300,13 +304,16 @@ export default function EmbarquePage() {
       setCartonActivo(carton);
       const modo = getModoEscaneo(carton);
       const esParcialNuevo = carton.tipo === "mono_sku" && modo === "qr";
+      const paresNuevo = carton.detalles?.reduce((s, d) => s + d.cantidad_esperada, 0) || 0;
       setLastScan({
         ok: true,
         msg:
           carton.tipo === "musical"
             ? "MUSICAL — Escanea QRs"
             : esParcialNuevo
-              ? "PARCIAL — Escanea la caja o los QRs"
+              ? paresNuevo === 6
+                ? "PARCIAL DE 6 — Escanea la caja o los QRs"
+                : "PARCIAL — Escanea los QRs"
               : "MONO SKU — Escanea la caja",
         tipo: carton.tipo,
       });
@@ -364,27 +371,8 @@ export default function EmbarquePage() {
     mutationFn: (caja_id) => asignarCaja(cartonActivo.id, caja_id),
     onSuccess: (res) => {
       const data = res.data || {};
-      // Cartón parcial: la caja aportó pares pero todavía faltan.
-      if (data.modo === "parcial" && !data.completo) {
-        beepOk();
-        triggerFlash("ok");
-        setLastScan({
-          ok: true,
-          msg: `+${data.pares_asignados} PARES DE LA CAJA`,
-          escaneados: data.pares_en_carton,
-          total: data.total,
-        });
-        setScanLog((prev) => [
-          { ok: true, qr: `Caja: ${data.pares_asignados} pares`, n: data.pares_en_carton, total: data.total, ts: new Date() },
-          ...prev.slice(0, 49),
-        ]);
-        refetchProgreso();
-        refetchResumenPO();
-        enfocarEntrada();
-        return;
-      }
       const paresRestantes =
-        data.modo === "split" || data.modo === "parcial"
+        data.modo === "split" || data.modo === "cama"
           ? (data.pares_restantes ?? 0)
           : 0;
       beepComplete();
@@ -509,16 +497,23 @@ export default function EmbarquePage() {
     }
   }
 
-  // En un cartón parcial el campo acepta la etiqueta de una caja (toma los
-  // pares que falten) o el QR de un par. En uno musical, solo QRs.
+  // En el cartón de 6 el campo acepta la etiqueta de una caja (aporta una
+  // cama de 6) o el QR de un par. En los demás parciales y en los musicales,
+  // solo QRs.
   function procesarLecturaQR(valor) {
     const v = valor.trim();
     if (!v) return;
     if (esEtiquetaCaja(v)) {
-      if (cartonActivo?.tipo === "musical") {
+      if (!aceptaCama) {
         beepError();
         triggerFlash("error");
-        setLastScan({ ok: false, msg: "Cartón musical: escanea los QRs uno por uno" });
+        setLastScan({
+          ok: false,
+          msg:
+            cartonActivo?.tipo === "musical"
+              ? "Cartón musical: escanea los QRs uno por uno"
+              : `Cartón de ${paresCarton} pares: escanea los QRs uno por uno`,
+        });
         enfocarEntrada();
         return;
       }
@@ -680,8 +675,8 @@ export default function EmbarquePage() {
                 ? "Escanea el código del cartón para comenzar"
                 : modoEscaneo === "caja"
                   ? "Escanea la caja empacada"
-                  : esParcial
-                    ? "Escanea una caja (toma los pares que falten) o los QRs uno por uno"
+                  : aceptaCama
+                    ? "Escanea la caja (aporta una cama de 6) o los QRs uno por uno"
                     : "Escanea QRs del cartón"}
             </p>
           </div>
@@ -864,7 +859,7 @@ export default function EmbarquePage() {
                 2
               </div>
               <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-                {esParcial ? "Caja o código QR" : "Código QR"}
+                {aceptaCama ? "Caja o código QR" : "Código QR"}
               </span>
             </div>
             <Input
@@ -878,7 +873,7 @@ export default function EmbarquePage() {
                   setCodigoQR("");
                 }
               }}
-              placeholder={esParcial ? "Escanea la caja o el QR del par..." : "Escanea el QR del par..."}
+              placeholder={aceptaCama ? "Escanea la caja o el QR del par..." : "Escanea el QR del par..."}
               className="border-gray-300 text-gray-900 placeholder:text-gray-300 focus-visible:ring-amber-400 h-11 font-mono text-sm bg-gray-50"
             />
           </div>
