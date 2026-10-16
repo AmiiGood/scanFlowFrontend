@@ -27,6 +27,7 @@ const CAJA_RE = /^\d+\$[A-Z0-9-]+\$\d+\$[A-Z]?\d+$/;
 const pareceQR = (valor) => /HTTPS?|CROCS\.COM/i.test(valor);
 const normalizarCaja = (valor) =>
   valor.replace(/['{]/g, "-").trim().toUpperCase();
+const CLAVE_CAJA_ACTIVA = "scanflow.produccion.cajaActiva";
 // Una lectura repetida del mismo QR dentro de este lapso se ignora: es el
 // lector disparando dos veces, no un segundo par.
 const VENTANA_REPETIDO_MS = 3000;
@@ -170,10 +171,43 @@ export default function ProduccionPage() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [bloqueado]);
 
+  // La caja activa se guarda en el navegador de la estación: recargar la
+  // página ya no la suelta (antes, con F5 se brincaba el bloqueo).
   function activarCaja(caja) {
     cajaActivaRef.current = caja;
     setCajaActiva(caja);
+    try {
+      if (caja) localStorage.setItem(CLAVE_CAJA_ACTIVA, String(caja.id));
+      else localStorage.removeItem(CLAVE_CAJA_ACTIVA);
+    } catch {
+      // Sin almacenamiento local la pantalla sigue funcionando, solo no
+      // recuerda la caja al recargar.
+    }
   }
+
+  // Al abrir la pantalla, retoma la caja que estaba en curso si sigue abierta.
+  useEffect(() => {
+    let guardada = null;
+    try {
+      guardada = localStorage.getItem(CLAVE_CAJA_ACTIVA);
+    } catch {
+      return;
+    }
+    if (!guardada) return;
+    getProgresoCaja(guardada)
+      .then((r) => {
+        if (cajaActivaRef.current) return;
+        if (r.data.caja?.estado === "abierta") {
+          activarCaja(r.data.caja);
+          setLastScan({ ok: true, msg: "CAJA RETOMADA", escaneados: r.data.escaneados, total: r.data.total });
+          setTimeout(() => qrInputRef.current?.focus(), 100);
+        } else {
+          activarCaja(null);
+        }
+      })
+      .catch(() => activarCaja(null));
+    // Solo al montar la pantalla.
+  }, []);
 
   function rechazar(msg) {
     beepError();
@@ -184,6 +218,12 @@ export default function ProduccionPage() {
   const iniciarMut = useMutation({
     mutationFn: iniciarCaja,
     onSuccess: (res) => {
+      // Respaldo por si el backend aún no rechaza las cajas completas.
+      if (res.data.estado === "empacada") {
+        rechazar("Esta caja ya está completa. Escanea otra caja");
+        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        return;
+      }
       beepOk();
       triggerFlash("ok");
       setLastScan({
@@ -252,6 +292,14 @@ export default function ProduccionPage() {
     },
     onError: (e, { codigo_qr }) => {
       const msg = e.response?.data?.error || "Error al escanear";
+      // La caja activa ya está completa (por ejemplo, se terminó en otra
+      // estación): se suelta para escanear la siguiente en vez de trabarse.
+      if (e.response?.data?.code === "CAJA_EMPACADA") {
+        activarCaja(null);
+        rechazar("La caja ya estaba completa. Escanea la siguiente caja");
+        setTimeout(() => cajaInputRef.current?.focus(), 50);
+        return;
+      }
       rechazar(msg);
       setScanLog((prev) => [
         { ok: false, qr: codigo_qr, msg, ts: new Date() },
