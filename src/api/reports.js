@@ -23,5 +23,7 @@ export const getPOsReporte = (params = {}) =>
   api.get("/reports/pos", { params });
 export const getDetalleCajas = (params = {}) =>
   api.get("/reports/detalle-cajas", { params });
+export const getDetalleQRs = (params = {}) =>
+  api.get("/reports/detalle-qrs", { params });
 export const getDashboard = () => api.get("/reports/dashboard");
 export const getQrsSinSKUPorUPC = () => api.get("/reports/qrs-sin-sku/upcs");

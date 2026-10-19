@@ -11,6 +11,7 @@ import {
   getDetalleCartonesPorPO,
   getPOsReporte,
   getDetalleCajas,
+  getDetalleQRs,
 } from "@/api/reports";
 import { getLiberaciones } from "@/api/supervisores";
 import { exportConTipos, exportToExcel } from "@/lib/exportExcel";
@@ -41,6 +42,7 @@ const TABS = [
   { id: "pendientes", label: "Cartones pendientes" },
   { id: "detalle-po", label: "Detalle PO-Cartón-QR" },
   { id: "detalle-cajas", label: "Detalle Caja-QR" },
+  { id: "detalle-qrs", label: "Detalle QR" },
   { id: "sin-sku", label: "QRs sin SKU" },
   { id: "envios", label: "Historial T4" },
   { id: "liberaciones", label: "Liberaciones" },
@@ -860,6 +862,174 @@ function TabDetalleCajas() {
   );
 }
 
+// --- Tab: Detalle QR ---
+// Una fila por QR ya usado (escaneado o enviado) con todo su recorrido. En
+// pantalla van las columnas principales; el Excel lleva todas.
+const COLUMNAS_QR = [
+  { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
+  { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
+  { titulo: "turno", valor: (r) => r.turno, ancho: 10 },
+  { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
+  { titulo: "token", valor: (r) => r.token, ancho: 16 },
+  { titulo: "upc", valor: (r) => r.upc, ancho: 15 },
+  { titulo: "estado_qr", valor: (r) => r.qr_estado, ancho: 11 },
+  { titulo: "sku", valor: (r) => r.sku_number, ancho: 18 },
+  { titulo: "style_no", valor: (r) => r.style_no, ancho: 10 },
+  { titulo: "estilo", valor: (r) => r.style_name, ancho: 24 },
+  { titulo: "color", valor: (r) => r.color_name, ancho: 16 },
+  { titulo: "talla", valor: (r) => r.size, ancho: 8 },
+  { titulo: "caja", valor: (r) => r.codigo_caja, ancho: 34 },
+  { titulo: "estado_caja", valor: (r) => r.caja_estado, ancho: 11 },
+  { titulo: "como_se_embarco", valor: (r) => r.como_se_embarco, ancho: 24 },
+  { titulo: "carton", valor: (r) => r.carton_id, ancho: 22 },
+  { titulo: "tipo_carton", valor: (r) => r.carton_tipo, ancho: 11 },
+  { titulo: "estado_carton", valor: (r) => r.carton_estado, ancho: 12 },
+  { titulo: "fecha_embarque", valor: (r) => r.embarcado_at, tipo: "fecha", ancho: 14 },
+  { titulo: "hora_embarque", valor: (r) => r.embarcado_at, tipo: "hora", ancho: 14 },
+  { titulo: "po", valor: (r) => r.po_number, ancho: 12 },
+  { titulo: "estado_po", valor: (r) => r.po_estado, ancho: 11 },
+  { titulo: "cfm_xf_date", valor: (r) => r.cfm_xf_date, tipo: "fecha", ancho: 12 },
+  { titulo: "fecha_envio_t4", valor: (r) => r.enviado_t4_at, tipo: "fecha", ancho: 14 },
+  { titulo: "hora_envio_t4", valor: (r) => r.enviado_t4_at, tipo: "hora", ancho: 14 },
+];
+
+const COLUMNAS_QR_PANTALLA = ["fecha", "hora", "turno", "token", "sku", "talla", "caja", "cartón", "PO", "estado"];
+
+function TabDetalleQRs() {
+  const [filters, setFilters] = useState(() => ({
+    codigo: "", sku: "", caja: "", po_number: "", estado: "", embarcado: "", turno: "",
+    fecha_desde: hoyLocal(), fecha_hasta: hoyLocal(),
+  }));
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+
+  const debouncedFilters = {
+    codigo: useDebounce(filters.codigo, 300),
+    sku: useDebounce(filters.sku, 300),
+    caja: useDebounce(filters.caja, 300),
+    po_number: useDebounce(filters.po_number, 300),
+    estado: filters.estado,
+    embarcado: filters.embarcado,
+    turno: filters.turno,
+    fecha_desde: filters.fecha_desde,
+    fecha_hasta: filters.fecha_hasta,
+  };
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["detalle-qrs", debouncedFilters, page],
+    queryFn: () => getDetalleQRs({ ...debouncedFilters, page, limit: 100 }).then((r) => r.data),
+    placeholderData: conservar,
+  });
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await getDetalleQRs({ ...debouncedFilters, all: 1 });
+      const rango = [filters.fecha_desde, filters.fecha_hasta].filter(Boolean).join("_a_");
+      const sufijo = [rango, filters.turno && `turno-${filters.turno}`].filter(Boolean).join("-");
+      exportConTipos(COLUMNAS_QR, res.data.data || [], `detalle-qr${sufijo ? "-" + sufijo : ""}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const filas = data?.data || [];
+  const cols = COLUMNAS_QR_PANTALLA.length;
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+          <Campo label="Código QR o token" className="col-span-2">
+            <input value={filters.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Todo o parte del código" className={cn(inputCls, "font-mono")} />
+          </Campo>
+          <Campo label="SKU">
+            <input value={filters.sku} onChange={(e) => set("sku", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Caja">
+            <input value={filters.caja} onChange={(e) => set("caja", e.target.value)} className={cn(inputCls, "font-mono")} />
+          </Campo>
+          <Campo label="PO">
+            <input value={filters.po_number} onChange={(e) => set("po_number", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Estado del QR">
+            <select value={filters.estado} onChange={(e) => set("estado", e.target.value)} className={inputCls}>
+              <option value="">Escaneados y enviados</option>
+              <option value="escaneado">Escaneados</option>
+              <option value="enviado">Enviados</option>
+            </select>
+          </Campo>
+          <Campo label="Embarque">
+            <select value={filters.embarcado} onChange={(e) => set("embarcado", e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              <option value="si">Ya en cartón</option>
+              <option value="no">Sin cartón</option>
+            </select>
+          </Campo>
+          <Campo label="Escaneado desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Turno">
+            <select value={filters.turno} onChange={(e) => set("turno", e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              <option value="A">A · 08:00–16:00</option>
+              <option value="B">B · 16:00–24:00</option>
+              <option value="C">C · 00:00–08:00</option>
+            </select>
+          </Campo>
+        </div>
+      </Panel>
+
+      <Panel
+        title={`${fmtNum(data?.total)} QRs`}
+        subtitle={data ? `${fmtNum(data.embarcados)} ya en cartón · ${fmtNum(data.enviados)} enviados a T4` : undefined}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              {COLUMNAS_QR_PANTALLA.map((t) => (
+                <th key={t} className={th}>{t}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={cols}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={cols}>Sin QRs escaneados con estos filtros</FilaMensaje>
+            ) : (
+              filas.map((r) => (
+                <tr key={r.id} className="hover:bg-zinc-50">
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtFecha(r.escaneado_at)}</td>
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
+                  <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
+                  <td className={cn(td, "font-mono text-xs text-zinc-900")} title={r.codigo_qr}>{r.token}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.sku_number}</td>
+                  <td className={cn(td, "text-xs")}>{r.size}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja || "—"}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")} title={r.como_se_embarco || undefined}>{r.carton_id || "—"}</td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.po_number || "—"}</td>
+                  <td className={td}><Estado valor={r.qr_estado} /></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={100} onPage={setPage} />
+      </Panel>
+    </div>
+  );
+}
+
 // --- Tab: QRs sin SKU ---
 // Agrupados por UPC: lo que hay que resolver es cada UPC, no cada QR.
 const SITUACION = {
@@ -1158,6 +1328,7 @@ const TAB_CONTENT = {
   pendientes: TabPendientes,
   "detalle-po": TabDetallePO,
   "detalle-cajas": TabDetalleCajas,
+  "detalle-qrs": TabDetalleQRs,
   "sin-sku": TabQRsSinSKU,
   envios: TabEnviosT4,
   liberaciones: TabLiberaciones,
