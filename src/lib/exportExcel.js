@@ -58,3 +58,24 @@ export function exportMultiSheet(sheets, filename) {
     `${filename}.xlsx`,
   );
 }
+
+// Plantilla de carga de SKUs con los ArSKU que faltan ya puestos (el UPC y el
+// nombre del estilo se capturan a mano). Todo como texto, igual que la plantilla.
+export function descargarPlantillaSkus(faltantes, filename = "skus-faltantes") {
+  const filas = [
+    ["ArSKU", "UPC", "StyleNo", "StyleName", "Size", "Color", "ColorName"],
+    ...faltantes.map((f) => [f.sku, "", f.style_no || "", "", f.size || "", f.sku.split("-")[1] || "", ""]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  for (let r = 1; r <= faltantes.length; r++)
+    for (let c = 0; c < 7; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+      ws[ref].z = "@";
+    }
+  ws["!cols"] = [22, 16, 11, 26, 10, 9, 18].map((wch) => ({ wch }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "SKUs");
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), `${filename}.xlsx`);
+}

@@ -863,11 +863,13 @@ function TabDetalleCajas() {
 // --- Tab: QRs sin SKU ---
 // Agrupados por UPC: lo que hay que resolver es cada UPC, no cada QR.
 const SITUACION = {
+  danado: ["UPC dañado: pedir el correcto a Trysor", "bg-red-50 text-red-700 border-red-200"],
   vincular: ["Solo falta vincular", "bg-emerald-50 text-emerald-700 border-emerald-200"],
   ceros: ["UPC con ceros distintos", "bg-amber-50 text-amber-800 border-amber-200"],
   cargar: ["Falta cargar el SKU", "bg-zinc-100 text-zinc-700 border-zinc-200"],
 };
-const situacion = (r) => (r.ya_esta_en_skus ? "vincular" : r.upc_en_skus ? "ceros" : "cargar");
+const situacion = (r) =>
+  !/^\d{12,14}$/.test(r.upc) ? "danado" : r.ya_esta_en_skus ? "vincular" : r.upc_en_skus ? "ceros" : "cargar";
 
 function TabQRsSinSKU() {
   const { data, isLoading } = useQuery({
@@ -900,6 +902,17 @@ function TabQRsSinSKU() {
         <Kpi label="UPC con ceros distintos" value={fmtNum(cuenta("ceros"))} hint="Corrige el UPC en el catálogo" tone={cuenta("ceros") ? "alerta" : "normal"} hintTone={cuenta("ceros") ? "alerta" : "neutral"} />
         <Kpi label="Solo falta vincular" value={fmtNum(cuenta("vincular"))} hint="Importar QRs › Vincular QRs huérfanos" />
       </div>
+
+      {cuenta("danado") > 0 && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <span className="font-semibold">
+            {fmtNum(filas.filter((r) => situacion(r) === "danado").reduce((a, r) => a + r.qrs, 0))} QRs
+          </span>{" "}
+          tienen el UPC dañado (en notación científica, como «1.91E+11»): así llegó de Trysor y ya no se puede saber cuál
+          era. No se arregla cargando SKUs. Pide a Trysor que corrija el UPC de esos códigos y vuelve a importar QRs: el
+          sistema los repara solo.
+        </p>
+      )}
 
       <Panel
         title="UPCs de los QRs sin SKU"

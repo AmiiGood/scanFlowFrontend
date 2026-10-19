@@ -96,6 +96,27 @@ function JobCard({ job }) {
         </div>
       )}
 
+      {job.estado === "completado" && job.resultado?.reparados > 0 && (
+        <p className="text-xs text-emerald-400 mt-2">
+          {Number(job.resultado.reparados).toLocaleString()} QRs que tenían el UPC dañado se repararon y se ligaron a su SKU.
+        </p>
+      )}
+
+      {job.estado === "completado" && job.resultado?.upc_invalido > 0 && (
+        <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300 space-y-1">
+          <p>
+            <span className="font-semibold">{Number(job.resultado.upc_invalido).toLocaleString()} QRs no se cargaron</span>{" "}
+            porque Trysor mandó el UPC dañado (por ejemplo en notación científica, como «1.91E+11»). Pide a Trysor
+            que corrija el UPC y vuelve a importar: entrarán solos.
+          </p>
+          {job.resultado.muestras_upc_invalido?.length > 0 && (
+            <p className="text-red-300/70 font-mono break-all">
+              Ejemplos: {job.resultado.muestras_upc_invalido.slice(0, 5).map((m) => `${m.codigo_qr.split("/").pop()} (UPC ${m.upc})`).join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
       {job.estado === "error" && (
         <p className="text-xs text-red-400 mt-1">{job.error}</p>
       )}

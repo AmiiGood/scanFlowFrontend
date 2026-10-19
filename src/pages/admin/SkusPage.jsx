@@ -7,17 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Upload,
-  CheckCircle2,
   XCircle,
   FileSpreadsheet,
   Search,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
+import { BotonPlantilla, RevisionSkus } from "@/components/admin/RevisionImportacion";
 
 export default function SkusPage() {
   const qc = useQueryClient();
   const fileRef = useRef();
-  const [result, setResult] = useState(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
@@ -31,22 +30,43 @@ export default function SkusPage() {
 
   const skus = data?.data || [];
 
-  const importMut = useMutation({
-    mutationFn: importSkus,
+  // Primero se revisa el archivo (nada se escribe); luego se confirma la carga.
+  const [archivo, setArchivo] = useState(null);
+  const [analisis, setAnalisis] = useState(null);
+  const [cargado, setCargado] = useState(false);
+  const [error, setError] = useState(null);
+  const falla = (e) => setError(e.response?.data?.error || "Error al leer el archivo");
+
+  const validarMut = useMutation({
+    mutationFn: (file) => importSkus(file, "validar"),
+    onSuccess: (res) => setAnalisis(res.data),
+    onError: falla,
+  });
+  const cargarMut = useMutation({
+    mutationFn: () => importSkus(archivo, "cargar"),
     onSuccess: (res) => {
-      setResult(res.data);
+      setAnalisis(res.data);
+      setCargado(true);
       qc.invalidateQueries(["skus"]);
     },
-    onError: (e) =>
-      setResult({ error: e.response?.data?.error || "Error al importar" }),
+    onError: falla,
   });
 
   function handleFile(e) {
     const file = e.target.files[0];
-    if (!file) return;
-    setResult(null);
-    importMut.mutate(file);
     e.target.value = "";
+    if (!file) return;
+    setArchivo(file);
+    setAnalisis(null);
+    setCargado(false);
+    setError(null);
+    validarMut.mutate(file);
+  }
+
+  function cerrarRevision() {
+    setAnalisis(null);
+    setArchivo(null);
+    setCargado(false);
   }
 
   function handleSearch(val) {
@@ -72,52 +92,36 @@ export default function SkusPage() {
               className="hidden"
               onChange={handleFile}
             />
+            <BotonPlantilla href="/plantillas/plantilla_importar_SKUs.xlsx">Plantilla</BotonPlantilla>
             <Button
               size="sm"
               onClick={() => fileRef.current.click()}
-              disabled={importMut.isPending}
+              disabled={validarMut.isPending || cargarMut.isPending}
               className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
             >
               <Upload size={14} />
-              {importMut.isPending ? "Importando..." : "Importar Excel"}
+              {validarMut.isPending ? "Revisando archivo..." : "Importar Excel"}
             </Button>
           </>
         }
       />
 
-      {/* Resultado importación */}
-      {result && (
-        <div
-          className={`mb-4 rounded-xl border px-4 py-3 text-sm ${result.error ? "border-red-500/20 bg-red-500/5 text-red-400" : "border-emerald-500/20 bg-emerald-500/5"}`}
-        >
-          {result.error ? (
-            <div className="flex items-center gap-2">
-              <XCircle size={14} />
-              {result.error}
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <CheckCircle2 size={14} />
-                {result.inserted} insertados
-              </div>
-              <span className="text-zinc-600">·</span>
-              <span className="text-zinc-400">
-                {result.updated} actualizados
-              </span>
-              <span className="text-zinc-600">·</span>
-              <span className="text-zinc-400">{result.total} total</span>
-              {result.errors?.length > 0 && (
-                <>
-                  <span className="text-zinc-600">·</span>
-                  <span className="text-red-400">
-                    {result.errors.length} errores
-                  </span>
-                </>
-              )}
-            </div>
-          )}
+      {/* Revisión / resultado de la importación */}
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400 flex items-center gap-2">
+          <XCircle size={14} className="shrink-0" />
+          {error}
         </div>
+      )}
+      {analisis && (
+        <RevisionSkus
+          analisis={analisis}
+          archivo={archivo?.name}
+          cargado={cargado}
+          cargando={cargarMut.isPending}
+          onCargar={() => cargarMut.mutate()}
+          onCerrar={cerrarRevision}
+        />
       )}
 
       {/* Búsqueda */}

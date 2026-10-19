@@ -92,11 +92,15 @@ export default function PurchaseOrderDetailPage() {
     po.cartones?.filter((c) => c.estado === "completo").length || 0;
   const progresoPct =
     totalCartones > 0 ? (cartonesCompletos / totalCartones) * 100 : 0;
+  // Cartones que dice el Excel de la PO y que no entraron al importar (por
+  // ejemplo, por SKUs que no estaban en el catálogo).
+  const faltanImportar = Math.max(0, Number(po.cantidad_cartones || 0) - totalCartones);
   const puedeEnviar =
-    po.estado === "completo" ||
-    (po.estado === "pendiente" &&
-      cartonesCompletos === totalCartones &&
-      totalCartones > 0);
+    faltanImportar === 0 &&
+    (po.estado === "completo" ||
+      (po.estado === "pendiente" &&
+        cartonesCompletos === totalCartones &&
+        totalCartones > 0));
   const puedeCancelar = po.estado === "enviado" && user?.rol === "superadmin";
 
   return (
@@ -137,6 +141,14 @@ export default function PurchaseOrderDetailPage() {
           }
         />
       </div>
+
+      {faltanImportar > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">
+          Faltan <span className="font-semibold">{faltanImportar}</span> de {po.cantidad_cartones} cartones por
+          importar. La PO no se puede enviar a T4 hasta que entren: revisa en Purchase Orders › Importar Excel qué
+          SKUs faltan y vuelve a importar su archivo.
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-6">
