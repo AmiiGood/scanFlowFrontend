@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCartonByCodigo,
@@ -18,14 +18,10 @@ import {
   AlertTriangle,
   Clock,
 } from "lucide-react";
-import * as Tone from "tone";
-
-// Etiqueta de caja (mismo formato que valida el backend):
-// codigoUnico$SKU$pares$secuencial. Sirve para distinguirla de un QR en el
-// cartón de 6, que acepta las dos cosas en el mismo campo.
-const CAJA_RE = /^\d+\$[A-Z0-9-]+\$\d+\$[A-Z]?\d+$/;
-const esEtiquetaCaja = (valor) =>
-  CAJA_RE.test(valor.replace(/['{]/g, "-").trim().toUpperCase());
+import { useSonidosEscaneo } from "@/hooks/useSonidosEscaneo";
+import { esEtiquetaCaja, normalizarCodigo } from "@/lib/codigosEscaneo";
+import EncabezadoEmbarque, { SelectorModo } from "./EncabezadoEmbarque";
+import MusicalPorPO from "./MusicalPorPO";
 
 function getModoEscaneo(carton) {
   if (!carton) return null;
@@ -164,60 +160,41 @@ function ResumenPOPanel({ resumen, cartonActivoId }) {
   );
 }
 
-function useSound() {
-  const beepOk = useCallback(async () => {
-    await Tone.start();
-    const synth = new Tone.Synth({
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 },
-    }).toDestination();
-    synth.volume.value = 6;
-    const now = Tone.now();
-    synth.triggerAttackRelease("C6", "16n", now);
-    synth.triggerAttackRelease("E6", "16n", now + 0.12);
-    setTimeout(() => synth.dispose(), 1000);
-  }, []);
-
-  const beepError = useCallback(async () => {
-    await Tone.start();
-    const synth = new Tone.Synth({
-      oscillator: { type: "sawtooth" },
-      envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 },
-    }).toDestination();
-    synth.volume.value = 10;
-    const now = Tone.now();
-    synth.triggerAttackRelease("A2", "8n", now);
-    synth.triggerAttackRelease("G2", "8n", now + 0.2);
-    synth.triggerAttackRelease("F2", "8n", now + 0.4);
-    setTimeout(() => synth.dispose(), 1500);
-  }, []);
-
-  const beepComplete = useCallback(async () => {
-    await Tone.start();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.3 },
-    }).toDestination();
-    synth.volume.value = 8;
-    const now = Tone.now();
-    synth.triggerAttackRelease("C5", "8n", now);
-    synth.triggerAttackRelease("E5", "8n", now + 0.15);
-    synth.triggerAttackRelease("G5", "8n", now + 0.3);
-    synth.triggerAttackRelease(["C6", "E6", "G6"], "4n", now + 0.45);
-    setTimeout(() => synth.dispose(), 2000);
-  }, []);
-
-  return { beepOk, beepError, beepComplete };
-}
+// Modo de la estación: por cartón o musicales por PO (se recuerda al recargar).
+const CLAVE_MODO = "scanflow.embarque.modo";
 
 export default function EmbarquePage() {
+  const [modo, setModo] = useState(() => {
+    try {
+      return localStorage.getItem(CLAVE_MODO) === "musical-po" ? "musical-po" : "carton";
+    } catch {
+      return "carton";
+    }
+  });
+  function cambiarModo(m) {
+    setModo(m);
+    try {
+      localStorage.setItem(CLAVE_MODO, m);
+    } catch {
+      // Sin almacenamiento: el modo se pierde al recargar.
+    }
+  }
+  const selector = <SelectorModo modo={modo} onCambiar={cambiarModo} />;
+  return modo === "musical-po" ? (
+    <MusicalPorPO selector={selector} />
+  ) : (
+    <EmbarquePorCarton selector={selector} />
+  );
+}
+
+function EmbarquePorCarton({ selector }) {
   const qc = useQueryClient();
   const cartonInputRef = useRef();
   const cajaInputRef = useRef();
   const qrInputRef = useRef();
   const flashTimer = useRef();
   const scanTimer = useRef();
-  const { beepOk, beepError, beepComplete } = useSound();
+  const { beepOk, beepError, beepComplete } = useSonidosEscaneo();
 
   const [cartonActivo, setCartonActivo] = useState(null);
   const [codigoCarton, setCodigoCarton] = useState("");
@@ -481,10 +458,6 @@ export default function EmbarquePage() {
     }
   }
 
-  function normalizarCodigo(codigo) {
-    return codigo.replace(/['{]/g, "-").toUpperCase();
-  }
-
   function handleCajaChange(e) {
     setCodigoCaja(e.target.value);
     clearTimeout(scanTimer.current);
@@ -565,55 +538,7 @@ export default function EmbarquePage() {
     <div
       className={`min-h-screen transition-colors duration-150 ${flash ? flashBg[flash] : "bg-gray-50"}`}
     >
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <rect
-                x="3"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.5"
-                fill="white"
-                opacity="0.9"
-              />
-              <rect
-                x="13"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.5"
-                fill="white"
-                opacity="0.4"
-              />
-              <rect
-                x="3"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.5"
-                fill="white"
-                opacity="0.4"
-              />
-              <rect
-                x="13"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.5"
-                fill="white"
-                opacity="0.9"
-              />
-            </svg>
-          </div>
-          <span className="font-bold text-gray-900">ScanFlow</span>
-          <span className="text-gray-200">|</span>
-          <span className="text-gray-500 text-sm font-bold uppercase tracking-wider">
-            Embarque
-          </span>
-        </div>
+      <EncabezadoEmbarque selector={selector}>
         {cartonActivo && (
           <button
             onClick={resetCarton}
@@ -622,7 +547,7 @@ export default function EmbarquePage() {
             <RotateCcw size={14} /> Cancelar cartón
           </button>
         )}
-      </div>
+      </EncabezadoEmbarque>
 
       <div className="max-w-4xl mx-auto px-6 py-6 space-y-5">
         {/* Feedback */}
