@@ -139,7 +139,7 @@ export default function App() {
       <Route
         path="/admin/reset"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute roles={["superadmin", "reportes"]}>
             <AppLayout>
               <ResetPage />
             </AppLayout>

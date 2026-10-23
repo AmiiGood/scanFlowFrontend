@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { buscarParaReset, desasociarCaja, resetCaja, resetCarton, resetPO } from "@/api/reset";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useAuthStore } from "@/store/authStore";
 import PageHeader from "@/components/layout/PageHeader";
+import AutorizarReseteoModal from "@/components/admin/AutorizarReseteoModal";
 import { Trash2, AlertTriangle, Box, Package, FileText, CheckCircle2, XCircle, Loader2, Search, X, Unlink } from "lucide-react";
 
 const TABS = [
@@ -15,6 +17,7 @@ const ADVERTENCIA = {
   caja: "Se borrarán todos los escaneos de la caja y sus QRs volverán a estado disponible. Sus pares salen de los cartones donde estén y esos cartones vuelven a pendiente.",
   carton: "Se borrarán los escaneos de Embarque del cartón, se desligarán sus cajas (vuelven a empacada) y el cartón vuelve a pendiente.",
   po: "Se resetearán todos los cartones y cajas de la PO. Los QRs volverán a estado disponible y la PO a pendiente.",
+  desasociar: "Los pares de la caja salen de los cartones donde están (también los repartidos par por par o en musicales por PO) y esos cartones vuelven a pendiente. La caja sigue empacada con sus QRs escaneados, lista para volver a asignarse.",
 };
 
 const ESTADO_COLORS = {
@@ -44,12 +47,14 @@ function detalle(tipo, r) {
 
 export default function ResetPage() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  // El superadmin solo da el motivo; los demás, además, el gafete de un supervisor.
+  const requiereGafete = user?.rol !== "superadmin";
   const [tab, setTab]           = useState("caja");
   const [texto, setTexto]       = useState("");
   const [seleccion, setSeleccion] = useState(null);
-  const [confirm, setConfirm]   = useState(false);
+  const [accion, setAccion]     = useState(null); // "reset" | "desasociar"
   const [result, setResult]     = useState(null);
-  const [confirmDesasociar, setConfirmDesasociar] = useState(false);
   const q = useDebounce(texto, 250);
 
   const { data: resultados = [], isFetching } = useQuery({
@@ -58,39 +63,22 @@ export default function ResetPage() {
     enabled: !seleccion,
   });
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      if (tab === "caja")   return resetCaja(seleccion.id);
-      if (tab === "carton") return resetCarton(seleccion.id);
-      return resetPO(seleccion.id);
-    },
-    onSuccess: (res) => {
-      setResult({ ok: true, data: res.data });
-      setConfirm(false);
-      setSeleccion(null);
-      qc.invalidateQueries();
-    },
-    onError: (e) => {
-      setResult({ ok: false, msg: e.response?.data?.error || "Error al resetear" });
-      setConfirm(false);
-    },
-  });
+  function ejecutar(datos) {
+    if (accion === "desasociar") return desasociarCaja(seleccion.id, datos);
+    if (tab === "caja")   return resetCaja(seleccion.id, datos);
+    if (tab === "carton") return resetCarton(seleccion.id, datos);
+    return resetPO(seleccion.id, datos);
+  }
+
+  function hecho(data) {
+    setResult({ ok: true, titulo: accion === "desasociar" ? "Caja desasociada" : "Reset completado", data });
+    setAccion(null);
+    setSeleccion(null);
+    qc.invalidateQueries();
+  }
 
   // Desasociar: la caja sale de sus cartones pero conserva su escaneo de
   // Producción, para volver a asignarla (por ejemplo, si se abre o corrige).
-  const desasociarMut = useMutation({
-    mutationFn: () => desasociarCaja(seleccion.id),
-    onSuccess: (res) => {
-      setResult({ ok: true, titulo: "Caja desasociada", data: res.data });
-      setConfirmDesasociar(false);
-      setSeleccion(null);
-      qc.invalidateQueries();
-    },
-    onError: (e) => {
-      setResult({ ok: false, msg: e.response?.data?.error || "Error al desasociar" });
-      setConfirmDesasociar(false);
-    },
-  });
   const puedeDesasociar =
     tab === "caja" && seleccion && (seleccion.carton_id || seleccion.pares_en_cartones > 0);
 
@@ -98,14 +86,13 @@ export default function ResetPage() {
     setTab(key);
     setTexto("");
     setSeleccion(null);
-    setConfirm(false);
+    setAccion(null);
     setResult(null);
   }
 
   function elegir(r) {
     setSeleccion(r);
-    setConfirm(false);
-    setConfirmDesasociar(false);
+    setAccion(null);
     setResult(null);
   }
 
@@ -115,7 +102,11 @@ export default function ResetPage() {
     <div className="p-8 space-y-6 max-w-3xl">
       <PageHeader
         title="Reset de asociaciones"
-        description="Borra los escaneos y resetea estados de cajas, cartones o POs"
+        description={
+          requiereGafete
+            ? "Borra los escaneos y resetea estados de cajas, cartones o POs. Cada reset pide el gafete de un supervisor y el motivo."
+            : "Borra los escaneos y resetea estados de cajas, cartones o POs. Cada reset queda registrado con su motivo."
+        }
       />
 
       {/* Tabs */}
@@ -186,7 +177,7 @@ export default function ResetPage() {
             </p>
           </div>
           <button
-            onClick={() => { setSeleccion(null); setConfirm(false); }}
+            onClick={() => { setSeleccion(null); setAccion(null); }}
             className="shrink-0 flex items-center gap-1 text-xs text-zinc-500 hover:text-white"
           >
             <X size={13} /> Cambiar
@@ -202,44 +193,21 @@ export default function ResetPage() {
             <div>
               <p className="text-sm text-sky-400 font-medium">Desasociar de sus cartones</p>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                Los pares de la caja salen de los cartones donde están (también los repartidos par por par o
-                en musicales por PO) y esos cartones vuelven a pendiente. La caja sigue empacada con sus QRs
-                escaneados, lista para volver a asignarse. Úsalo si la caja se va a abrir o corregir.
+                {ADVERTENCIA.desasociar} Úsalo si la caja se va a abrir o corregir.
               </p>
             </div>
           </div>
-          {!confirmDesasociar ? (
-            <button
-              onClick={() => setConfirmDesasociar(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 text-sm font-medium hover:bg-sky-500/20 transition-colors"
-            >
-              <Unlink size={14} />
-              Desasociar caja
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDesasociar(false)}
-                className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-zinc-400 text-sm hover:text-white transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => desasociarMut.mutate()}
-                disabled={desasociarMut.isPending}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/30 text-sky-300 text-sm font-medium hover:bg-sky-500/30 transition-colors disabled:opacity-50"
-              >
-                {desasociarMut.isPending
-                  ? <><Loader2 size={14} className="animate-spin" /> Desasociando...</>
-                  : <><Unlink size={14} /> Sí, desasociar</>
-                }
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => setAccion("desasociar")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 text-sm font-medium hover:bg-sky-500/20 transition-colors"
+          >
+            <Unlink size={14} />
+            Desasociar caja
+          </button>
         </div>
       )}
 
-      {/* Advertencia + confirmación */}
+      {/* Reset */}
       {seleccion && !result && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
           <div className="flex items-start gap-3">
@@ -249,36 +217,27 @@ export default function ResetPage() {
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{ADVERTENCIA[tab]}</p>
             </div>
           </div>
-
-          {!confirm ? (
-            <button
-              onClick={() => setConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/20 transition-colors"
-            >
-              <Trash2 size={14} />
-              Confirmar reset
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirm(false)}
-                className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-zinc-400 text-sm hover:text-white transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => mutation.mutate()}
-                disabled={mutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
-              >
-                {mutation.isPending
-                  ? <><Loader2 size={14} className="animate-spin" /> Reseteando...</>
-                  : <><Trash2 size={14} /> Sí, resetear</>
-                }
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => setAccion("reset")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/20 transition-colors"
+          >
+            <Trash2 size={14} />
+            Resetear
+          </button>
         </div>
+      )}
+
+      {accion && seleccion && (
+        <AutorizarReseteoModal
+          titulo={accion === "desasociar" ? "Desasociar caja" : `Resetear ${tabActual.label.toLowerCase()}`}
+          codigo={seleccion.codigo}
+          advertencia={accion === "desasociar" ? ADVERTENCIA.desasociar : ADVERTENCIA[tab]}
+          textoBoton={accion === "desasociar" ? "Desasociar" : "Resetear"}
+          requiereGafete={requiereGafete}
+          ejecutar={ejecutar}
+          onClose={() => setAccion(null)}
+          onHecho={hecho}
+        />
       )}
 
       {/* Resultado */}
@@ -292,7 +251,7 @@ export default function ResetPage() {
               : <XCircle size={16} className="text-red-400" />
             }
             <p className={`text-sm font-medium ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
-              {result.ok ? result.titulo || "Reset completado" : result.msg}
+              {result.ok ? result.titulo : result.msg}
             </p>
           </div>
           {result.ok && (

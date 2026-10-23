@@ -15,6 +15,7 @@ import {
   getUsuariosReporte,
 } from "@/api/reports";
 import { getLiberaciones } from "@/api/supervisores";
+import { getReseteos } from "@/api/reset";
 import { exportConTipos, exportToExcel } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ const TABS = [
   { id: "sin-sku", label: "QRs sin SKU" },
   { id: "envios", label: "Historial T4" },
   { id: "liberaciones", label: "Liberaciones" },
+  { id: "reseteos", label: "Reseteos" },
 ];
 
 // Mantiene la página anterior visible mientras llega la siguiente.
@@ -1356,6 +1358,133 @@ function TabLiberaciones() {
   );
 }
 
+// --- Tab: Reseteos ---
+// Todo reset queda registrado: qué se reseteó, por qué, quién lo hizo y, si no
+// fue un superadmin, qué supervisor lo autorizó con su gafete.
+const TIPOS_RESET = {
+  caja: "Reset de caja",
+  carton: "Reset de cartón",
+  po: "Reset de PO",
+  desasociar_caja: "Desasociar caja",
+};
+
+// Lo que hizo el reset, en una línea (sale del resultado guardado).
+function resumenReset(r) {
+  const x = r.resultado || {};
+  if (r.tipo === "caja") return `${fmtNum(x.escaneos_borrados)} escaneos borrados`;
+  if (r.tipo === "carton") return `${fmtNum(x.escaneos_musicales_borrados)} pares quitados · ${fmtNum(x.cajas_desligadas)} cajas desligadas`;
+  if (r.tipo === "po") return `${fmtNum(x.cartones_reseteados)} cartones · ${fmtNum(x.cajas_desligadas)} cajas · ${fmtNum((x.escaneos_cajas_borrados || 0) + (x.escaneos_musicales_borrados || 0))} escaneos`;
+  if (r.tipo === "desasociar_caja") return `${x.cartones_afectados} cartones · PO ${x.pos}`;
+  return "";
+}
+
+function TabReseteos() {
+  const [filters, setFilters] = useState({ fecha_desde: "", fecha_hasta: "", tipo: "" });
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["reseteos", filters, page],
+    queryFn: () => getReseteos({ ...filters, page, limit: 50 }).then((r) => r.data),
+    placeholderData: conservar,
+  });
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await getReseteos({ ...filters, all: 1 });
+      exportToExcel(
+        (res.data.data || []).map((r) => ({
+          "Fecha y hora": fmtFechaHora(r.fecha_hora),
+          Tipo: r.tipo_texto,
+          Código: r.codigo,
+          Motivo: r.motivo_texto,
+          Comentario: r.comentario || "",
+          "Autorizó (supervisor)": r.supervisor || "",
+          "Hecho por": r.hecho_por || "",
+          Resultado: resumenReset(r),
+        })),
+        "reseteos",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const filas = data?.data || [];
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+          <Campo label="Desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Tipo">
+            <select value={filters.tipo} onChange={(e) => set("tipo", e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              {Object.entries(TIPOS_RESET).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      </Panel>
+      <Panel
+        title={`${fmtNum(data?.total)} ${data?.total === 1 ? "reseteo" : "reseteos"}`}
+        subtitle="Cada reset con su motivo. Los que no hizo un superadmin llevan el supervisor que los autorizó con su gafete."
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} />}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>Fecha y hora</th>
+              <th className={th}>Qué se reseteó</th>
+              <th className={th}>Motivo</th>
+              <th className={th}>Autorizó</th>
+              <th className={th}>Hecho por</th>
+              <th className={th}>Resultado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={6}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={6}>No hay reseteos en este periodo</FilaMensaje>
+            ) : (
+              filas.map((r) => (
+                <tr key={r.id} className="align-top hover:bg-zinc-50">
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
+                  <td className={td}>
+                    <div className="text-zinc-900 text-xs font-medium">{r.tipo_texto}</div>
+                    <div className="font-mono text-xs text-zinc-500 break-all">{r.codigo}</div>
+                  </td>
+                  <td className={td}>
+                    <div className="text-zinc-900">{r.motivo_texto}</div>
+                    {r.comentario && <div className="text-xs text-zinc-500 mt-0.5 max-w-sm">{r.comentario}</div>}
+                  </td>
+                  <td className={cn(td, "text-zinc-900")}>{r.supervisor || <span className="text-zinc-400">—</span>}</td>
+                  <td className={cn(td, "text-zinc-900 whitespace-nowrap")}>{r.hecho_por}</td>
+                  <td className={cn(td, "text-xs text-zinc-500")}>{resumenReset(r)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={50} onPage={setPage} />
+      </Panel>
+    </div>
+  );
+}
+
 // --- Página principal ---
 const TAB_CONTENT = {
   produccion: TabProduccion,
@@ -1368,6 +1497,7 @@ const TAB_CONTENT = {
   "sin-sku": TabQRsSinSKU,
   envios: TabEnviosT4,
   liberaciones: TabLiberaciones,
+  reseteos: TabReseteos,
 };
 
 export default function ReportesPage() {

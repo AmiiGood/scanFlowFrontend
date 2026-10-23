@@ -30,6 +30,7 @@ const navByRole = {
   reportes: [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
+    { to: "/admin/reset", icon: Trash2, label: "Reset" },
   ],
   superadmin: [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
