@@ -125,7 +125,10 @@ export default function BackupPage() {
             </div>
           ))}
         </div>
-        <p className="text-xs text-zinc-500 mt-3">Contraseña: <span className="font-mono text-zinc-500">*FCMX2026</span></p>
+        <p className="text-xs text-zinc-500 mt-3">
+          Su contraseña se define en el servidor (<span className="font-mono">BACKUP_SEED_PASSWORD</span> en el .env).
+          Si no está definida, el respaldo no los incluye.
+        </p>
       </div>
     </div>
   );
