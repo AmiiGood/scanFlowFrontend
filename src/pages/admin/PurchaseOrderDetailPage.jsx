@@ -28,17 +28,17 @@ import {
 } from "lucide-react";
 
 const ESTADO_STYLES = {
-  pendiente: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  en_proceso: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  completo: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  enviado: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  cancelado: "bg-red-500/10 text-red-400 border-red-500/20",
+  pendiente: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  en_proceso: "bg-blue-50 text-blue-700 border-blue-200",
+  completo: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  enviado: "bg-violet-50 text-violet-700 border-violet-200",
+  cancelado: "bg-red-50 text-red-700 border-red-200",
 };
 
 const CARTON_ESTADO_STYLES = {
-  pendiente: "text-zinc-600",
-  en_proceso: "text-blue-400",
-  completo: "text-emerald-400",
+  pendiente: "text-zinc-500",
+  en_proceso: "text-blue-700",
+  completo: "text-emerald-700",
 };
 
 export default function PurchaseOrderDetailPage() {
@@ -80,11 +80,11 @@ export default function PurchaseOrderDetailPage() {
   });
 
   if (isLoading) {
-    return <div className="p-8 text-zinc-600">Cargando...</div>;
+    return <div className="p-8 text-zinc-500">Cargando...</div>;
   }
 
   if (!po) {
-    return <div className="p-8 text-zinc-600">PO no encontrada</div>;
+    return <div className="p-8 text-zinc-500">PO no encontrada</div>;
   }
 
   const totalCartones = po.cartones?.length || 0;
@@ -108,7 +108,7 @@ export default function PurchaseOrderDetailPage() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate("/admin/purchase-orders")}
-          className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
         >
           <ArrowLeft size={16} />
         </button>
@@ -121,7 +121,7 @@ export default function PurchaseOrderDetailPage() {
                 <Button
                   size="sm"
                   onClick={() => setConfirmModal("cancelar")}
-                  className="border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 gap-1.5"
+                  className="border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 gap-1.5"
                 >
                   <XCircle size={14} />
                   Cancelar PO
@@ -131,7 +131,7 @@ export default function PurchaseOrderDetailPage() {
                 <Button
                   size="sm"
                   onClick={() => setConfirmModal("enviar")}
-                  className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
+                  className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
                 >
                   <Send size={14} />
                   Enviar a T4
@@ -143,7 +143,7 @@ export default function PurchaseOrderDetailPage() {
       </div>
 
       {faltanImportar > 0 && (
-        <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Faltan <span className="font-semibold">{faltanImportar}</span> de {po.cantidad_cartones} cartones por
           importar. La PO no se puede enviar a T4 hasta que entren: revisa en Purchase Orders › Importar Excel qué
           SKUs faltan y vuelve a importar su archivo.
@@ -180,23 +180,23 @@ export default function PurchaseOrderDetailPage() {
         ].map(({ label, value }) => (
           <div
             key={label}
-            className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3"
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-3"
           >
-            <p className="text-xs text-zinc-600 mb-1">{label}</p>
-            <div className="text-white font-medium text-sm">{value}</div>
+            <p className="text-xs text-zinc-500 mb-1">{label}</p>
+            <div className="text-zinc-900 font-medium text-sm">{value}</div>
           </div>
         ))}
       </div>
 
       {/* Barra de progreso general */}
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 mb-6">
+      <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-zinc-500">Progreso general</span>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-zinc-600">
             {progresoPct.toFixed(0)}%
           </span>
         </div>
-        <div className="h-2 rounded-full bg-white/5">
+        <div className="h-2 rounded-full bg-white">
           <div
             className="h-full rounded-full bg-emerald-500 transition-all duration-500"
             style={{ width: `${progresoPct}%` }}
@@ -208,23 +208,23 @@ export default function PurchaseOrderDetailPage() {
       <div className="mb-6">
         <button
           onClick={() => setHistorialOpen(!historialOpen)}
-          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
         >
           <Clock size={14} />
           Historial de envíos
           {historialOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
         {historialOpen && (
-          <div className="mt-3 rounded-xl border border-white/5 overflow-hidden">
+          <div className="mt-3 rounded-xl border border-zinc-200 bg-white overflow-hidden">
             {historial.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-zinc-600">
+              <p className="px-4 py-3 text-xs text-zinc-500">
                 Sin envíos registrados
               </p>
             ) : (
               historial.map((h) => (
                 <div
                   key={h.id}
-                  className="flex items-center gap-4 px-4 py-3 border-b border-white/5 last:border-0 text-xs"
+                  className="flex items-center gap-4 px-4 py-3 border-b border-zinc-200 last:border-0 text-xs"
                 >
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-md font-medium border ${ESTADO_STYLES[h.estado]}`}
@@ -243,15 +243,15 @@ export default function PurchaseOrderDetailPage() {
 
       {/* Lista de cartones */}
       <div>
-        <h2 className="text-sm font-medium text-zinc-400 mb-3">
+        <h2 className="text-sm font-medium text-zinc-600 mb-3">
           Cartones{" "}
-          <span className="text-zinc-600 font-normal">({totalCartones})</span>
+          <span className="text-zinc-500 font-normal">({totalCartones})</span>
         </h2>
         <div className="space-y-1.5">
           {po.cartones?.map((carton) => (
             <div
               key={carton.id}
-              className="rounded-xl border border-white/5 overflow-hidden"
+              className="rounded-xl border border-zinc-200 bg-white overflow-hidden"
             >
               <button
                 onClick={() =>
@@ -259,20 +259,20 @@ export default function PurchaseOrderDetailPage() {
                     expandedCarton === carton.id ? null : carton.id,
                   )
                 }
-                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
+                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-zinc-50 transition-colors text-left"
               >
                 <Package
                   size={14}
                   className={CARTON_ESTADO_STYLES[carton.estado]}
                 />
-                <span className="font-mono text-xs text-white flex-1">
+                <span className="font-mono text-xs text-zinc-900 flex-1">
                   {carton.carton_id}
                 </span>
                 <span
                   className={`text-xs px-2 py-0.5 rounded-md border ${
                     carton.tipo === "musical"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                      : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-zinc-100 text-zinc-600 border-zinc-200"
                   }`}
                 >
                   {carton.tipo === "musical" ? "Musical" : "Mono SKU"}
@@ -283,21 +283,21 @@ export default function PurchaseOrderDetailPage() {
                   {carton.estado}
                 </span>
                 {expandedCarton === carton.id ? (
-                  <ChevronUp size={12} className="text-zinc-600" />
+                  <ChevronUp size={12} className="text-zinc-400" />
                 ) : (
-                  <ChevronDown size={12} className="text-zinc-600" />
+                  <ChevronDown size={12} className="text-zinc-400" />
                 )}
               </button>
 
               {expandedCarton === carton.id && (
-                <div className="border-t border-white/5 px-4 py-3 bg-white/[0.01]">
+                <div className="border-t border-zinc-200 px-4 py-3 bg-zinc-50">
                   <div className="space-y-1.5">
                     {carton.detalles?.map((d, i) => (
                       <div
                         key={i}
                         className="flex items-center justify-between text-xs"
                       >
-                        <span className="font-mono text-zinc-400">
+                        <span className="font-mono text-zinc-600">
                           {d.sku_number}
                         </span>
                         <span className="text-zinc-500">
@@ -315,23 +315,23 @@ export default function PurchaseOrderDetailPage() {
 
       {/* Modal confirmación */}
       <Dialog open={!!confirmModal} onOpenChange={() => setConfirmModal(null)}>
-        <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-sm">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-900 max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-zinc-900">
               {confirmModal === "enviar"
                 ? "Enviar PO a T4"
                 : "Cancelar PO en T4"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-zinc-600">
               {confirmModal === "enviar"
                 ? `¿Confirmas el envío de la PO ${po.po_number} a la API T4? Esta acción enviará ${totalCartones} cartones.`
                 : `¿Confirmas la cancelación de la PO ${po.po_number} en T4? Deberá re-enviarse si se necesita nuevamente.`}
             </p>
 
             {(enviarMut.error || cancelarMut.error) && (
-              <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {enviarMut.error?.response?.data?.error ||
                   cancelarMut.error?.response?.data?.error ||
                   "Error al procesar"}
@@ -342,7 +342,7 @@ export default function PurchaseOrderDetailPage() {
               <Button
                 variant="ghost"
                 onClick={() => setConfirmModal(null)}
-                className="flex-1 text-zinc-400 hover:text-white border border-white/10"
+                className="flex-1 text-zinc-600 hover:text-zinc-900 border border-zinc-200"
               >
                 Cancelar
               </Button>
@@ -353,7 +353,7 @@ export default function PurchaseOrderDetailPage() {
                     : cancelarMut.mutate()
                 }
                 disabled={enviarMut.isPending || cancelarMut.isPending}
-                className={`flex-1 gap-1.5 ${confirmModal === "cancelar" ? "bg-red-500 hover:bg-red-600 text-white" : "bg-white text-zinc-950 hover:bg-zinc-100"}`}
+                className={`flex-1 gap-1.5 ${confirmModal === "cancelar" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`}
               >
                 {confirmModal === "enviar" ? (
                   <>

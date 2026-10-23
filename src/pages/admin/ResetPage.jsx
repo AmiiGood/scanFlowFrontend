@@ -21,13 +21,13 @@ const ADVERTENCIA = {
 };
 
 const ESTADO_COLORS = {
-  abierta:   "text-blue-400",
-  empacada:  "text-emerald-400",
-  pendiente: "text-zinc-400",
-  en_proceso:"text-amber-400",
-  completo:  "text-emerald-400",
-  enviado:   "text-violet-400",
-  cancelado: "text-red-400",
+  abierta:   "text-blue-700",
+  empacada:  "text-emerald-700",
+  pendiente: "text-zinc-600",
+  en_proceso:"text-amber-700",
+  completo:  "text-emerald-700",
+  enviado:   "text-violet-700",
+  cancelado: "text-red-700",
 };
 
 // Una línea de detalle por tipo, para distinguir resultados con códigos parecidos.
@@ -110,13 +110,13 @@ export default function ResetPage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white/[0.03] border border-white/5 rounded-xl p-1">
+      <div className="flex gap-1 bg-zinc-50 border border-zinc-200 rounded-xl p-1">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === key ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"
+              tab === key ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
             <Icon size={14} />
@@ -135,11 +135,11 @@ export default function ResetPage() {
               value={texto}
               onChange={(e) => { setTexto(e.target.value); setResult(null); }}
               placeholder={tabActual.placeholder}
-              className="w-full h-11 rounded-lg bg-white/5 border border-white/10 text-white text-sm pl-9 pr-9 font-mono placeholder:font-sans placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="w-full h-11 rounded-lg bg-white border border-zinc-200 text-zinc-900 text-sm pl-9 pr-9 font-mono placeholder:font-sans placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-600/20"
             />
             {isFetching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 animate-spin" />}
           </div>
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-zinc-500">
             {!q
               ? "Las 25 más recientes"
               : resultados.length === 25
@@ -147,19 +147,19 @@ export default function ResetPage() {
                 : `${resultados.length} ${resultados.length === 1 ? "coincidencia" : "coincidencias"}`}{" "}
             · elige una para resetearla
           </p>
-          <div className="rounded-xl border border-white/5 divide-y divide-white/5 overflow-hidden">
+          <div className="rounded-xl border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden">
             {resultados.length === 0 && !isFetching ? (
-              <p className="px-4 py-6 text-center text-sm text-zinc-600">Sin coincidencias</p>
+              <p className="px-4 py-6 text-center text-sm text-zinc-500">Sin coincidencias</p>
             ) : (
               resultados.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => elegir(r)}
-                  className="w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors"
+                  className="w-full text-left px-4 py-3 hover:bg-zinc-50 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-sm text-white break-all">{r.codigo}</span>
-                    <span className={`text-xs shrink-0 ${ESTADO_COLORS[r.estado] || "text-zinc-400"}`}>{r.estado}</span>
+                    <span className="font-mono text-sm text-zinc-900 break-all">{r.codigo}</span>
+                    <span className={`text-xs shrink-0 ${ESTADO_COLORS[r.estado] || "text-zinc-600"}`}>{r.estado}</span>
                   </div>
                   <p className="text-xs text-zinc-500 mt-0.5">{detalle(tab, r)}</p>
                 </button>
@@ -168,17 +168,17 @@ export default function ResetPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 flex items-start justify-between gap-3">
+        <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-1">{tabActual.label} seleccionada</p>
-            <p className="font-mono text-sm text-white break-all">{seleccion.codigo}</p>
+            <p className="font-mono text-sm text-zinc-900 break-all">{seleccion.codigo}</p>
             <p className="text-xs text-zinc-500 mt-0.5">
-              <span className={ESTADO_COLORS[seleccion.estado] || "text-zinc-400"}>{seleccion.estado}</span> · {detalle(tab, seleccion)}
+              <span className={ESTADO_COLORS[seleccion.estado] || "text-zinc-600"}>{seleccion.estado}</span> · {detalle(tab, seleccion)}
             </p>
           </div>
           <button
             onClick={() => { setSeleccion(null); setAccion(null); }}
-            className="shrink-0 flex items-center gap-1 text-xs text-zinc-500 hover:text-white"
+            className="shrink-0 flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900"
           >
             <X size={13} /> Cambiar
           </button>
@@ -187,11 +187,11 @@ export default function ResetPage() {
 
       {/* Desasociar (solo cajas que están en cartones) */}
       {puedeDesasociar && !result && (
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-5 space-y-4">
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 space-y-4">
           <div className="flex items-start gap-3">
-            <Unlink size={16} className="text-sky-400 shrink-0 mt-0.5" />
+            <Unlink size={16} className="text-sky-700 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-sky-400 font-medium">Desasociar de sus cartones</p>
+              <p className="text-sm text-sky-700 font-medium">Desasociar de sus cartones</p>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
                 {ADVERTENCIA.desasociar} Úsalo si la caja se va a abrir o corregir.
               </p>
@@ -199,7 +199,7 @@ export default function ResetPage() {
           </div>
           <button
             onClick={() => setAccion("desasociar")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 text-sm font-medium hover:bg-sky-500/20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-sm font-medium hover:bg-sky-100 transition-colors"
           >
             <Unlink size={14} />
             Desasociar caja
@@ -209,17 +209,17 @@ export default function ResetPage() {
 
       {/* Reset */}
       {seleccion && !result && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-amber-400 font-medium">Esta acción no se puede deshacer</p>
+              <p className="text-sm text-amber-700 font-medium">Esta acción no se puede deshacer</p>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{ADVERTENCIA[tab]}</p>
             </div>
           </div>
           <button
             onClick={() => setAccion("reset")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors"
           >
             <Trash2 size={14} />
             Resetear
@@ -243,14 +243,14 @@ export default function ResetPage() {
       {/* Resultado */}
       {result && (
         <div className={`rounded-xl border p-5 space-y-3 ${
-          result.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
+          result.ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
         }`}>
           <div className="flex items-center gap-2">
             {result.ok
-              ? <CheckCircle2 size={16} className="text-emerald-400" />
-              : <XCircle size={16} className="text-red-400" />
+              ? <CheckCircle2 size={16} className="text-emerald-700" />
+              : <XCircle size={16} className="text-red-700" />
             }
-            <p className={`text-sm font-medium ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
+            <p className={`text-sm font-medium ${result.ok ? "text-emerald-700" : "text-red-700"}`}>
               {result.ok ? result.titulo : result.msg}
             </p>
           </div>
@@ -259,14 +259,14 @@ export default function ResetPage() {
               {Object.entries(result.data).map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between text-xs">
                   <span className="text-zinc-500">{k.replace(/_/g, " ")}</span>
-                  <span className="text-zinc-300 font-mono">{v}</span>
+                  <span className="text-zinc-700 font-mono">{v}</span>
                 </div>
               ))}
             </div>
           )}
           <button
             onClick={() => { setResult(null); setTexto(""); }}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-xs text-zinc-500 hover:text-zinc-600 transition-colors"
           >
             Hacer otro reset
           </button>

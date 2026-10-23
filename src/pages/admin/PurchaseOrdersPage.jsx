@@ -17,11 +17,11 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { BotonPlantilla, RevisionPOs } from "@/components/admin/RevisionImportacion";
 
 const ESTADO_STYLES = {
-  pendiente: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  en_proceso: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  completo: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  enviado: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  cancelado: "bg-red-500/10 text-red-400 border-red-500/20",
+  pendiente: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  en_proceso: "bg-blue-50 text-blue-700 border-blue-200",
+  completo: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  enviado: "bg-violet-50 text-violet-700 border-violet-200",
+  cancelado: "bg-red-50 text-red-700 border-red-200",
 };
 
 const ESTADOS = ["pendiente", "en_proceso", "completo", "enviado", "cancelado"];
@@ -120,7 +120,7 @@ export default function PurchaseOrdersPage() {
               size="sm"
               onClick={() => fileRef.current.click()}
               disabled={validarMut.isPending || cargarMut.isPending}
-              className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
+              className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
             >
               <Upload size={14} />
               {validarMut.isPending ? "Revisando archivo..." : "Importar Excel"}
@@ -131,7 +131,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Revisión / resultado de la importación */}
       {error && (
-        <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400 flex items-center gap-2">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
           <XCircle size={14} className="shrink-0" />
           {error}
         </div>
@@ -152,13 +152,13 @@ export default function PurchaseOrdersPage() {
         <div className="relative flex-1 max-w-sm">
           <Search
             size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
           />
           <Input
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Buscar por número de PO..."
-            className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9"
+            className="pl-8 bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9"
           />
         </div>
         <div className="flex items-center gap-1.5">
@@ -169,7 +169,7 @@ export default function PurchaseOrdersPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 estado === e
                   ? ESTADO_STYLES[e]
-                  : "border-white/5 text-zinc-600 hover:text-zinc-400 hover:border-white/10"
+                  : "border-zinc-200 text-zinc-500 hover:text-zinc-600 hover:border-zinc-300"
               }`}
             >
               {e}
@@ -179,10 +179,10 @@ export default function PurchaseOrdersPage() {
       </div>
 
       {/* Tabla */}
-      <div className="rounded-xl border border-white/5 overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
+            <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 PO Number
               </th>
@@ -204,14 +204,14 @@ export default function PurchaseOrdersPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             ) : pos.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center">
-                  <div className="flex flex-col items-center gap-2 text-zinc-600">
+                  <div className="flex flex-col items-center gap-2 text-zinc-500">
                     <FileSpreadsheet size={24} />
                     <span className="text-sm">
                       {search || estado
@@ -226,17 +226,17 @@ export default function PurchaseOrdersPage() {
                 <tr
                   key={po.id}
                   onClick={() => navigate(`/admin/purchase-orders/${po.id}`)}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  className="border-b border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-4 py-3 text-white font-mono text-xs font-medium">
+                  <td className="px-4 py-3 text-zinc-900 font-mono text-xs font-medium">
                     {po.po_number}
                   </td>
-                  <td className="px-4 py-3 text-zinc-300">
+                  <td className="px-4 py-3 text-zinc-700">
                     {Number(po.cantidad_pares).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 rounded-full bg-white/5 max-w-24">
+                      <div className="flex-1 h-1.5 rounded-full bg-white max-w-24">
                         <div
                           className="h-full rounded-full bg-emerald-500 transition-all"
                           style={{
@@ -244,17 +244,17 @@ export default function PurchaseOrdersPage() {
                           }}
                         />
                       </div>
-                      <span className="text-zinc-400 text-xs">
+                      <span className="text-zinc-600 text-xs">
                         {po.cartones_completos}/{po.total_cartones}
                       </span>
                     </div>
                     {Number(po.total_cartones) < Number(po.cantidad_cartones) && (
-                      <p className="text-amber-400 text-[11px] mt-1">
+                      <p className="text-amber-700 text-[11px] mt-1">
                         Faltan {Number(po.cantidad_cartones) - Number(po.total_cartones)} cartones por importar
                       </p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs">
+                  <td className="px-4 py-3 text-zinc-600 text-xs">
                     {po.cfm_xf_date
                       ? new Date(po.cfm_xf_date).toLocaleDateString("es-MX")
                       : "—"}
@@ -267,7 +267,7 @@ export default function PurchaseOrdersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <ChevronRight size={14} className="text-zinc-600 ml-auto" />
+                    <ChevronRight size={14} className="text-zinc-400 ml-auto" />
                   </td>
                 </tr>
               ))

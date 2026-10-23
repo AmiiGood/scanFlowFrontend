@@ -45,40 +45,23 @@ const navByRole = {
   ],
 };
 
-// Clases de cada tema; el claro es el de las pantallas ya rediseñadas.
-const TEMA = {
-  oscuro: {
-    aside: "bg-zinc-950 border-white/5",
-    linea: "border-white/5",
-    logoCaja: "bg-white/5 border-white/10 text-white",
-    logoTexto: "text-white",
-    activo: "bg-white/10 text-white font-medium",
-    inactivo: "text-zinc-500 hover:text-zinc-300 hover:bg-white/5",
-    iconoActivo: "text-white",
-    iconoInactivo: "text-zinc-600 group-hover:text-zinc-400",
-    avatar: "bg-white/10 border-white/10 text-white",
-    nombre: "text-white",
-    rol: "text-zinc-600",
-    salir: "text-zinc-500 hover:text-red-400 hover:bg-red-400/5",
-  },
-  claro: {
-    aside: "bg-white border-zinc-200",
-    linea: "border-zinc-200",
-    logoCaja: "bg-zinc-900 border-zinc-900 text-white",
-    logoTexto: "text-zinc-900",
-    activo: "bg-zinc-100 text-zinc-900 font-medium",
-    inactivo: "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50",
-    iconoActivo: "text-zinc-900",
-    iconoInactivo: "text-zinc-400 group-hover:text-zinc-600",
-    avatar: "bg-zinc-100 border-zinc-200 text-zinc-700",
-    nombre: "text-zinc-900",
-    rol: "text-zinc-500",
-    salir: "text-zinc-600 hover:text-red-700 hover:bg-red-50",
-  },
+// Clases del menú (tema claro, el de toda la aplicación).
+const t = {
+  aside: "bg-white border-zinc-200",
+  linea: "border-zinc-200",
+  logoCaja: "bg-zinc-900 border-zinc-900 text-white",
+  logoTexto: "text-zinc-900",
+  activo: "bg-zinc-100 text-zinc-900 font-medium",
+  inactivo: "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50",
+  iconoActivo: "text-zinc-900",
+  iconoInactivo: "text-zinc-400 group-hover:text-zinc-600",
+  avatar: "bg-zinc-100 border-zinc-200 text-zinc-700",
+  nombre: "text-zinc-900",
+  rol: "text-zinc-500",
+  salir: "text-zinc-600 hover:text-red-700 hover:bg-red-50",
 };
 
-export default function Sidebar({ claro = false }) {
-  const t = TEMA[claro ? "claro" : "oscuro"];
+export default function Sidebar() {
   const { user, logout } = useAuth();
   const locked = useLockStore((s) => s.locked);
   const nav = navByRole[user?.rol] || [];

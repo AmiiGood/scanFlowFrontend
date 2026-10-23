@@ -33,14 +33,14 @@ export default function ConfiguracionPage() {
         description="Ajustes de comportamiento del sistema"
       />
 
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+      <div className="rounded-xl border border-zinc-200 bg-white p-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-              <Lock size={18} className="text-amber-400" />
+            <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+              <Lock size={18} className="text-amber-700" />
             </div>
             <div>
-              <p className="text-white font-semibold mb-1">
+              <p className="text-zinc-900 font-semibold mb-1">
                 Bloqueo total en producción
               </p>
               <p className="text-xs text-zinc-500 leading-relaxed max-w-md">
@@ -57,7 +57,7 @@ export default function ConfiguracionPage() {
             onClick={toggleBloqueo}
             disabled={isLoading || mut.isPending}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${
-              bloqueo ? "bg-emerald-500" : "bg-zinc-700"
+              bloqueo ? "bg-emerald-500" : "bg-zinc-300"
             }`}
           >
             <span
@@ -68,25 +68,25 @@ export default function ConfiguracionPage() {
           </button>
         </div>
 
-        <div className="mt-5 pt-5 border-t border-white/5 flex items-center gap-2 text-xs">
+        <div className="mt-5 pt-5 border-t border-zinc-200 flex items-center gap-2 text-xs">
           {mut.isPending ? (
             <span className="flex items-center gap-2 text-zinc-500">
               <Loader2 size={13} className="animate-spin" /> Guardando…
             </span>
           ) : bloqueo ? (
-            <span className="flex items-center gap-2 text-emerald-400">
+            <span className="flex items-center gap-2 text-emerald-700">
               <ShieldAlert size={13} /> Bloqueo activado
             </span>
           ) : (
-            <span className="text-zinc-600">Bloqueo desactivado</span>
+            <span className="text-zinc-500">Bloqueo desactivado</span>
           )}
         </div>
       </div>
 
       {bloqueo && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 flex items-start gap-3">
-          <ShieldAlert size={16} className="text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-200/80 leading-relaxed">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-3">
+          <ShieldAlert size={16} className="text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 leading-relaxed">
             Con el bloqueo activo, un operador que inicie una caja deberá
             completarla. Si se queda atascado, un supervisor de la lista de
             abajo la libera desde Producción con su gafete. Para soltar todas

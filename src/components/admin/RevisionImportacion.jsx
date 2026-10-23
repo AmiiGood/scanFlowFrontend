@@ -9,11 +9,11 @@ const n = (v) => Number(v || 0).toLocaleString("es-MX");
 const pl = (v, uno, varios) => `${n(v)} ${Number(v) === 1 ? uno : varios}`;
 
 const TONO = {
-  verde: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  azul: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  gris: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  ambar: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  rojo: "bg-red-500/10 text-red-400 border-red-500/20",
+  verde: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  azul: "bg-blue-50 text-blue-700 border-blue-200",
+  gris: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  ambar: "bg-amber-50 text-amber-700 border-amber-200",
+  rojo: "bg-red-50 text-red-700 border-red-200",
 };
 
 function Chip({ tono, children }) {
@@ -26,11 +26,11 @@ function Chip({ tono, children }) {
 
 function Marco({ titulo, archivo, cargado, resumen, children, acciones }) {
   return (
-    <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.02]">
-      <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-white/5">
+    <div className="mb-6 rounded-xl border border-zinc-200 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-zinc-200">
         <div>
-          <p className="text-white font-semibold flex items-center gap-2">
-            {cargado ? <CheckCircle2 size={16} className="text-emerald-400" /> : null}
+          <p className="text-zinc-900 font-semibold flex items-center gap-2">
+            {cargado ? <CheckCircle2 size={16} className="text-emerald-700" /> : null}
             {titulo}
           </p>
           <p className="text-xs text-zinc-500 mt-0.5">{archivo}</p>
@@ -49,7 +49,7 @@ function Boton({ onClick, disabled, principal, children }) {
       onClick={onClick}
       disabled={disabled}
       className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-medium disabled:opacity-40 disabled:pointer-events-none ${
-        principal ? "bg-white text-zinc-950 hover:bg-zinc-100" : "border border-white/10 text-zinc-300 hover:bg-white/5"
+        principal ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
       }`}
     >
       {children}
@@ -58,7 +58,7 @@ function Boton({ onClick, disabled, principal, children }) {
 }
 
 function Aviso({ tono = "rojo", children }) {
-  const cls = tono === "rojo" ? "border-red-500/20 bg-red-500/5 text-red-300" : "border-amber-500/20 bg-amber-500/5 text-amber-200";
+  const cls = tono === "rojo" ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-900";
   const Icono = tono === "rojo" ? XCircle : AlertTriangle;
   return (
     <div className={`rounded-lg border px-3 py-2 text-xs flex gap-2 ${cls}`}>
@@ -68,8 +68,8 @@ function Aviso({ tono = "rojo", children }) {
   );
 }
 
-const thCls = "text-left px-3 py-2 text-xs text-zinc-500 font-medium border-b border-white/5 whitespace-nowrap";
-const tdCls = "px-3 py-2 text-xs border-b border-white/5 align-top";
+const thCls = "text-left px-3 py-2 text-xs text-zinc-500 font-medium border-b border-zinc-200 whitespace-nowrap";
+const tdCls = "px-3 py-2 text-xs border-b border-zinc-200 align-top";
 
 // ---------------------------------------------------------------- SKUs
 const ESTADO_SKU = {
@@ -125,15 +125,15 @@ export function RevisionSkus({ analisis, archivo, cargado, cargando, onCargar, o
       <div className="flex items-center justify-between">
         <p className="text-xs text-zinc-500">{n(visibles.length)} filas</p>
         {resumen.errores > 0 && (
-          <label className="flex items-center gap-2 text-xs text-zinc-400">
+          <label className="flex items-center gap-2 text-xs text-zinc-600">
             <input type="checkbox" checked={soloErrores} onChange={(e) => setSoloErrores(e.target.checked)} />
             Solo filas con error
           </label>
         )}
       </div>
-      <div className="max-h-[420px] overflow-auto rounded-lg border border-white/5">
+      <div className="max-h-[420px] overflow-auto rounded-lg border border-zinc-200 bg-white">
         <table className="w-full">
-          <thead className="sticky top-0 bg-zinc-900">
+          <thead className="sticky top-0 bg-white">
             <tr>
               <th className={thCls}>Línea</th>
               <th className={thCls}>ArSKU</th>
@@ -149,13 +149,13 @@ export function RevisionSkus({ analisis, archivo, cargado, cargando, onCargar, o
               return (
                 <tr key={f.linea}>
                   <td className={`${tdCls} text-zinc-500 tabular-nums`}>{f.linea}</td>
-                  <td className={`${tdCls} font-mono text-white`}>{f.sku_number || "—"}</td>
-                  <td className={`${tdCls} font-mono text-zinc-400`}>{f.upc || "—"}</td>
-                  <td className={`${tdCls} text-zinc-400`}>{f.size || "—"}</td>
+                  <td className={`${tdCls} font-mono text-zinc-900`}>{f.sku_number || "—"}</td>
+                  <td className={`${tdCls} font-mono text-zinc-600`}>{f.upc || "—"}</td>
+                  <td className={`${tdCls} text-zinc-600`}>{f.size || "—"}</td>
                   <td className={tdCls}><Chip tono={tono}>{texto}</Chip></td>
-                  <td className={`${tdCls} text-zinc-400`}>
+                  <td className={`${tdCls} text-zinc-600`}>
                     {f.errores.length
-                      ? f.errores.map((e, i) => <p key={i} className="text-red-300">{e}</p>)
+                      ? f.errores.map((e, i) => <p key={i} className="text-red-800">{e}</p>)
                       : f.cambios.length
                         ? `Cambia: ${f.cambios.map((c) => CAMPO[c] || c).join(", ")}${f.upc_anterior ? ` (UPC anterior ${f.upc_anterior})` : ""}`
                         : ""}
@@ -183,36 +183,36 @@ function FilaPO({ p, cargado }) {
   const hayDetalle = p.errores.length || p.avisos.length || p.rechazados.length;
   return (
     <>
-      <tr className={hayDetalle ? "cursor-pointer hover:bg-white/[0.02]" : ""} onClick={() => hayDetalle && setAbierta(!abierta)}>
+      <tr className={hayDetalle ? "cursor-pointer hover:bg-zinc-50" : ""} onClick={() => hayDetalle && setAbierta(!abierta)}>
         <td className={`${tdCls} text-zinc-500`}>
           {hayDetalle ? abierta ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : null}
         </td>
-        <td className={`${tdCls} font-mono text-white`}>{p.po_number}</td>
-        <td className={`${tdCls} text-zinc-400`}>{p.existe ? p.estado_actual : "Nueva"}</td>
-        <td className={`${tdCls} text-right tabular-nums text-zinc-400`}>{n(p.cartones_en_archivo)}</td>
-        <td className={`${tdCls} text-right tabular-nums text-emerald-400`}>{p.nuevo ? n(p.nuevo) : "—"}</td>
-        <td className={`${tdCls} text-right tabular-nums text-blue-400`}>{p.actualiza ? n(p.actualiza) : "—"}</td>
+        <td className={`${tdCls} font-mono text-zinc-900`}>{p.po_number}</td>
+        <td className={`${tdCls} text-zinc-600`}>{p.existe ? p.estado_actual : "Nueva"}</td>
+        <td className={`${tdCls} text-right tabular-nums text-zinc-600`}>{n(p.cartones_en_archivo)}</td>
+        <td className={`${tdCls} text-right tabular-nums text-emerald-700`}>{p.nuevo ? n(p.nuevo) : "—"}</td>
+        <td className={`${tdCls} text-right tabular-nums text-blue-700`}>{p.actualiza ? n(p.actualiza) : "—"}</td>
         <td className={`${tdCls} text-right tabular-nums text-zinc-500`}>{p.sin_cambios ? n(p.sin_cambios) : "—"}</td>
-        <td className={`${tdCls} text-right tabular-nums ${p.rechazado ? "text-red-400 font-semibold" : "text-zinc-600"}`}>
+        <td className={`${tdCls} text-right tabular-nums ${p.rechazado ? "text-red-700 font-semibold" : "text-zinc-500"}`}>
           {p.rechazado ? n(p.rechazado) : "—"}
         </td>
         <td className={tdCls}>
           <Chip tono={tono}>{cargado && p.estado !== "error" ? (p.estado === "ok" ? "Cargada" : "Cargada incompleta") : texto}</Chip>
-          {p.avisos.length > 0 && <AlertTriangle size={13} className="inline ml-1.5 text-amber-400" />}
+          {p.avisos.length > 0 && <AlertTriangle size={13} className="inline ml-1.5 text-amber-700" />}
         </td>
       </tr>
       {abierta && (
         <tr>
           <td />
-          <td colSpan={8} className="px-3 pb-3 pt-1 border-b border-white/5 space-y-1.5">
+          <td colSpan={8} className="px-3 pb-3 pt-1 border-b border-zinc-200 space-y-1.5">
             {p.errores.map((e, i) => <Aviso key={`e${i}`}>{e}</Aviso>)}
             {p.avisos.map((a, i) => <Aviso key={`a${i}`} tono="ambar">{a}</Aviso>)}
             {p.rechazados.length > 0 && (
-              <div className="rounded-lg border border-white/5 max-h-48 overflow-auto">
+              <div className="rounded-lg border border-zinc-200 bg-white max-h-48 overflow-auto">
                 {p.rechazados.slice(0, 200).map((c) => (
-                  <p key={c.carton_id} className="px-3 py-1 text-xs border-b border-white/5 last:border-0">
-                    <span className="font-mono text-zinc-300">{c.carton_id}</span>
-                    <span className="text-red-300"> · {c.errores.join(" · ")}</span>
+                  <p key={c.carton_id} className="px-3 py-1 text-xs border-b border-zinc-200 last:border-0">
+                    <span className="font-mono text-zinc-700">{c.carton_id}</span>
+                    <span className="text-red-800"> · {c.errores.join(" · ")}</span>
                   </p>
                 ))}
                 {p.rechazados.length > 200 && (
@@ -277,15 +277,15 @@ export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, on
       )}
 
       {faltantes.length > 0 && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/[0.03]">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-red-500/10">
-            <p className="text-sm text-red-300 font-medium">
+        <div className="rounded-lg border border-red-200 bg-red-50">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-red-100">
+            <p className="text-sm text-red-800 font-medium">
               {faltantes.length === 1 ? "1 SKU no está en el catálogo" : `${n(faltantes.length)} SKUs no están en el catálogo`}
             </p>
             {paraPlantilla.length > 0 && (
               <button
                 onClick={() => descargarPlantillaSkus(paraPlantilla)}
-                className="inline-flex items-center gap-1.5 text-xs text-white hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-zinc-900 hover:underline"
               >
                 <Download size={13} />
                 {paraPlantilla.length === 1
@@ -307,11 +307,11 @@ export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, on
             <tbody>
               {faltantes.map((f) => (
                 <tr key={f.sku}>
-                  <td className={`${tdCls} font-mono text-white`}>{f.sku}</td>
-                  <td className={`${tdCls} text-right tabular-nums text-zinc-300`}>{n(f.cartones)}</td>
-                  <td className={`${tdCls} text-right tabular-nums text-zinc-400`}>{n(f.pares)}</td>
-                  <td className={`${tdCls} font-mono text-zinc-400`}>{f.pos.join(", ")}</td>
-                  <td className={`${tdCls} ${f.sugerencia ? "text-amber-300" : "text-zinc-400"}`}>
+                  <td className={`${tdCls} font-mono text-zinc-900`}>{f.sku}</td>
+                  <td className={`${tdCls} text-right tabular-nums text-zinc-700`}>{n(f.cartones)}</td>
+                  <td className={`${tdCls} text-right tabular-nums text-zinc-600`}>{n(f.pares)}</td>
+                  <td className={`${tdCls} font-mono text-zinc-600`}>{f.pos.join(", ")}</td>
+                  <td className={`${tdCls} ${f.sugerencia ? "text-amber-800" : "text-zinc-600"}`}>
                     {f.sugerencia || "Cargarlo en SKUs (con su UPC) y reimportar este archivo"}
                   </td>
                 </tr>
@@ -324,15 +324,15 @@ export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, on
       <div className="flex items-center justify-between">
         <p className="text-xs text-zinc-500">{n(visibles.length)} POs · clic en una fila para ver el detalle</p>
         {conProblema.length > 0 && (
-          <label className="flex items-center gap-2 text-xs text-zinc-400">
+          <label className="flex items-center gap-2 text-xs text-zinc-600">
             <input type="checkbox" checked={soloProblemas} onChange={(e) => setSoloProblemas(e.target.checked)} />
             Solo POs con problemas o avisos
           </label>
         )}
       </div>
-      <div className="max-h-[480px] overflow-auto rounded-lg border border-white/5">
+      <div className="max-h-[480px] overflow-auto rounded-lg border border-zinc-200 bg-white">
         <table className="w-full">
-          <thead className="sticky top-0 bg-zinc-900">
+          <thead className="sticky top-0 bg-white">
             <tr>
               <th className={thCls} />
               <th className={thCls}>PO</th>
@@ -359,7 +359,7 @@ export function BotonPlantilla({ href, children }) {
     <a
       href={href}
       download
-      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/10 text-xs font-medium text-zinc-300 hover:bg-white/5"
+      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-zinc-200 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
     >
       <Download size={13} /> {children}
     </a>

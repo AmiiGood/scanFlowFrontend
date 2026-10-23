@@ -30,7 +30,7 @@ export default function Paginator({ page, pages, total, limit, onPage }) {
 
   return (
     <div className="flex items-center justify-between mt-4">
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-zinc-500">
         {from}–{to} de {total.toLocaleString()} resultados
       </p>
       <div className="flex items-center gap-1">
@@ -39,14 +39,14 @@ export default function Paginator({ page, pages, total, limit, onPage }) {
           size="icon"
           onClick={() => onPage(page - 1)}
           disabled={page === 1}
-          className="h-7 w-7 text-zinc-500 hover:text-white disabled:opacity-30"
+          className="h-7 w-7 text-zinc-500 hover:text-zinc-900 disabled:opacity-30"
         >
           <ChevronLeft size={14} />
         </Button>
 
         {getPages().map((p, i) =>
           p === "..." ? (
-            <span key={`dots-${i}`} className="text-zinc-600 text-xs px-1">
+            <span key={`dots-${i}`} className="text-zinc-500 text-xs px-1">
               ···
             </span>
           ) : (
@@ -55,8 +55,8 @@ export default function Paginator({ page, pages, total, limit, onPage }) {
               onClick={() => onPage(p)}
               className={`h-7 w-7 rounded-md text-xs transition-colors ${
                 p === page
-                  ? "bg-white text-zinc-950 font-medium"
-                  : "text-zinc-500 hover:text-white hover:bg-white/5"
+                  ? "bg-zinc-900 text-white font-medium"
+                  : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
               }`}
             >
               {p}
@@ -69,7 +69,7 @@ export default function Paginator({ page, pages, total, limit, onPage }) {
           size="icon"
           onClick={() => onPage(page + 1)}
           disabled={page === pages}
-          className="h-7 w-7 text-zinc-500 hover:text-white disabled:opacity-30"
+          className="h-7 w-7 text-zinc-500 hover:text-zinc-900 disabled:opacity-30"
         >
           <ChevronRight size={14} />
         </Button>

@@ -24,23 +24,23 @@ import {
 
 const ESTADO_JOB = {
   pendiente: {
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10 border-zinc-500/20",
+    color: "text-zinc-600",
+    bg: "bg-zinc-100 border-zinc-200",
     icon: Clock,
   },
   procesando: {
-    color: "text-blue-400",
-    bg: "bg-blue-500/10 border-blue-500/20",
+    color: "text-blue-700",
+    bg: "bg-blue-50 border-blue-200",
     icon: Loader2,
   },
   completado: {
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/20",
+    color: "text-emerald-700",
+    bg: "bg-emerald-50 border-emerald-200",
     icon: CheckCircle2,
   },
   error: {
-    color: "text-red-400",
-    bg: "bg-red-500/10 border-red-500/20",
+    color: "text-red-700",
+    bg: "bg-red-50 border-red-200",
     icon: XCircle,
   },
 };
@@ -63,7 +63,7 @@ function JobCard({ job }) {
           className={`${cfg.color} ${job.estado === "procesando" ? "animate-spin" : ""}`}
         />
         <span className={`text-sm font-medium ${cfg.color}`}>{job.estado}</span>
-        <span className="text-zinc-600 text-xs ml-auto">
+        <span className="text-zinc-500 text-xs ml-auto">
           {new Date(job.created_at).toLocaleString("es-MX")}
         </span>
       </div>
@@ -82,13 +82,13 @@ function JobCard({ job }) {
             {
               label: "Insertados",
               value: job.resultado.inserted,
-              color: "text-emerald-400",
+              color: "text-emerald-700",
             },
             { label: "Ya existían", value: job.resultado.skipped },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white/5 rounded-lg px-3 py-2">
-              <p className="text-xs text-zinc-600">{label}</p>
-              <p className={`text-base font-semibold ${color || "text-white"}`}>
+            <div key={label} className="bg-white rounded-lg px-3 py-2">
+              <p className="text-xs text-zinc-500">{label}</p>
+              <p className={`text-base font-semibold ${color || "text-zinc-900"}`}>
                 {Number(value || 0).toLocaleString()}
               </p>
             </div>
@@ -97,20 +97,20 @@ function JobCard({ job }) {
       )}
 
       {job.estado === "completado" && job.resultado?.reparados > 0 && (
-        <p className="text-xs text-emerald-400 mt-2">
+        <p className="text-xs text-emerald-700 mt-2">
           {Number(job.resultado.reparados).toLocaleString()} QRs que tenían el UPC dañado se repararon y se ligaron a su SKU.
         </p>
       )}
 
       {job.estado === "completado" && job.resultado?.upc_invalido > 0 && (
-        <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300 space-y-1">
+        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 space-y-1">
           <p>
             <span className="font-semibold">{Number(job.resultado.upc_invalido).toLocaleString()} QRs no se cargaron</span>{" "}
             porque Trysor mandó el UPC dañado (por ejemplo en notación científica, como «1.91E+11»). Pide a Trysor
             que corrija el UPC y vuelve a importar: entrarán solos.
           </p>
           {job.resultado.muestras_upc_invalido?.length > 0 && (
-            <p className="text-red-300/70 font-mono break-all">
+            <p className="text-red-700/80 font-mono break-all">
               Ejemplos: {job.resultado.muestras_upc_invalido.slice(0, 5).map((m) => `${m.codigo_qr.split("/").pop()} (UPC ${m.upc})`).join(", ")}
             </p>
           )}
@@ -118,11 +118,11 @@ function JobCard({ job }) {
       )}
 
       {job.estado === "error" && (
-        <p className="text-xs text-red-400 mt-1">{job.error}</p>
+        <p className="text-xs text-red-700 mt-1">{job.error}</p>
       )}
 
       {duracion !== null && (
-        <p className="text-xs text-zinc-600 mt-2">Duración: {duracion}s</p>
+        <p className="text-xs text-zinc-500 mt-2">Duración: {duracion}s</p>
       )}
     </div>
   );
@@ -200,28 +200,28 @@ export default function QRImportPage() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-8">
         {[
-          { label: "Total", value: stats?.total || 0, color: "text-white" },
+          { label: "Total", value: stats?.total || 0, color: "text-zinc-900" },
           {
             label: "Disponibles",
             value: stats?.disponibles || 0,
-            color: "text-emerald-400",
+            color: "text-emerald-700",
           },
           {
             label: "Escaneados",
             value: stats?.escaneados || 0,
-            color: "text-blue-400",
+            color: "text-blue-700",
           },
           {
             label: "Enviados",
             value: stats?.enviados || 0,
-            color: "text-violet-400",
+            color: "text-violet-700",
           },
         ].map(({ label, value, color }) => (
           <div
             key={label}
-            className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3"
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-3"
           >
-            <p className="text-xs text-zinc-600 mb-1">{label}</p>
+            <p className="text-xs text-zinc-500 mb-1">{label}</p>
             <p className={`text-xl font-semibold ${color}`}>
               {Number(value).toLocaleString()}
             </p>
@@ -230,10 +230,10 @@ export default function QRImportPage() {
       </div>
 
       {/* Configuración */}
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 mb-6 space-y-4">
-        <h2 className="text-sm font-medium text-zinc-300">Nueva importación</h2>
+      <div className="rounded-xl border border-zinc-200 bg-white p-5 mb-6 space-y-4">
+        <h2 className="text-sm font-medium text-zinc-700">Nueva importación</h2>
         <div className="space-y-1.5">
-          <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+          <Label className="text-zinc-600 text-xs uppercase tracking-wider">
             Traer QRs desde fecha (LastGetTime)
           </Label>
           <Input
@@ -241,9 +241,9 @@ export default function QRImportPage() {
             onChange={(e) => setLastGetTime(e.target.value)}
             disabled={isRunning}
             placeholder="2000-01-01 00:00:00"
-            className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9 max-w-xs font-mono text-sm"
+            className="bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9 max-w-xs font-mono text-sm"
           />
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-zinc-500">
             Usa <span className="font-mono">2000-01-01 00:00:00</span> para
             traer todos. Para importaciones incrementales usa la fecha del
             último import.
@@ -253,7 +253,7 @@ export default function QRImportPage() {
         <Button
           onClick={() => importMut.mutate()}
           disabled={isRunning}
-          className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
+          className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
         >
           {isRunning ? (
             <>
@@ -269,8 +269,8 @@ export default function QRImportPage() {
         </Button>
 
         {isRunning && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500 bg-blue-500/5 border border-blue-500/10 rounded-lg px-3 py-2">
-            <Loader2 size={12} className="animate-spin text-blue-400" />
+          <div className="flex items-center gap-2 text-xs text-zinc-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            <Loader2 size={12} className="animate-spin text-blue-700" />
             Proceso corriendo en el servidor. Puedes cerrar esta página — el
             proceso continuará. Actualizando cada 5 segundos...
           </div>
@@ -278,12 +278,12 @@ export default function QRImportPage() {
       </div>
 
       {/* Match QRs <-> SKUs */}
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 mb-6 space-y-4">
+      <div className="rounded-xl border border-zinc-200 bg-white p-5 mb-6 space-y-4">
         <div>
-          <h2 className="text-sm font-medium text-zinc-300">
+          <h2 className="text-sm font-medium text-zinc-700">
             Vincular QRs con SKUs
           </h2>
-          <p className="text-xs text-zinc-600 mt-1">
+          <p className="text-xs text-zinc-500 mt-1">
             Asigna <span className="font-mono">sku_id</span> a los QRs sin SKU
             haciendo match por UPC. Útil cuando se importaron QRs antes que los
             SKUs.
@@ -297,7 +297,7 @@ export default function QRImportPage() {
           }}
           disabled={matchMut.isPending}
           variant="outline"
-          className="border-white/10 bg-white/5 text-white hover:bg-white/10 gap-1.5"
+          className="border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-200 gap-1.5"
         >
           {matchMut.isPending ? (
             <>
@@ -313,23 +313,23 @@ export default function QRImportPage() {
         </Button>
 
         {matchResult?.ok && (
-          <div className="flex flex-wrap gap-3 text-xs bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-3 py-2">
-            <span className="text-emerald-400">{matchResult.message}</span>
+          <div className="flex flex-wrap gap-3 text-xs bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+            <span className="text-emerald-700">{matchResult.message}</span>
             <span className="text-zinc-500">
               Pendientes antes:{" "}
-              <span className="text-white font-medium">
+              <span className="text-zinc-900 font-medium">
                 {matchResult.pendientes_antes?.toLocaleString()}
               </span>
             </span>
             <span className="text-zinc-500">
               Actualizados:{" "}
-              <span className="text-emerald-400 font-medium">
+              <span className="text-emerald-700 font-medium">
                 {matchResult.actualizados?.toLocaleString()}
               </span>
             </span>
             <span className="text-zinc-500">
               Sin match:{" "}
-              <span className="text-amber-400 font-medium">
+              <span className="text-amber-700 font-medium">
                 {matchResult.sin_match?.toLocaleString()}
               </span>
             </span>
@@ -337,7 +337,7 @@ export default function QRImportPage() {
         )}
 
         {matchResult?.ok === false && (
-          <div className="text-xs text-red-400 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2">
+          <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
             {matchResult.error}
           </div>
         )}
@@ -347,12 +347,12 @@ export default function QRImportPage() {
       {recentJobs.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-zinc-400">
+            <h2 className="text-sm font-medium text-zinc-600">
               Historial de importaciones
             </h2>
             <button
               onClick={refetchJobs}
-              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+              className="text-xs text-zinc-500 hover:text-zinc-600 transition-colors"
             >
               <RefreshCw size={12} />
             </button>
@@ -366,7 +366,7 @@ export default function QRImportPage() {
       )}
 
       {recentJobs.length === 0 && !isRunning && (
-        <div className="flex flex-col items-center gap-3 py-12 text-zinc-700">
+        <div className="flex flex-col items-center gap-3 py-12 text-zinc-500">
           <QrCode size={32} />
           <p className="text-sm">Sin importaciones previas</p>
         </div>

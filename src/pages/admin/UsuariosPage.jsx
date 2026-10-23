@@ -29,11 +29,11 @@ const ROL_LABELS = {
 };
 
 const ROL_COLORS = {
-  superadmin: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  operador_produccion: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  operador_embarque: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  operador_po: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  reportes: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  superadmin: "bg-violet-50 text-violet-700 border-violet-200",
+  operador_produccion: "bg-blue-50 text-blue-700 border-blue-200",
+  operador_embarque: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  operador_po: "bg-amber-50 text-amber-700 border-amber-200",
+  reportes: "bg-sky-50 text-sky-700 border-sky-200",
 };
 
 const EMPTY_FORM = {
@@ -147,7 +147,7 @@ export default function UsuariosPage() {
           <Button
             onClick={openCreate}
             size="sm"
-            className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
+            className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
           >
             <UserPlus size={14} />
             Nuevo usuario
@@ -156,10 +156,10 @@ export default function UsuariosPage() {
       />
 
       {/* Tabla */}
-      <div className="rounded-xl border border-white/5 overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
+            <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 Nombre
               </th>
@@ -180,13 +180,13 @@ export default function UsuariosPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
                   No hay usuarios registrados
                 </td>
               </tr>
@@ -194,19 +194,19 @@ export default function UsuariosPage() {
               users.map((u) => (
                 <tr
                   key={u.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  className="border-b border-zinc-200 hover:bg-zinc-50 transition-colors"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                        <span className="text-white text-xs font-medium">
+                      <div className="w-7 h-7 rounded-full bg-white border border-zinc-200 flex items-center justify-center shrink-0">
+                        <span className="text-zinc-900 text-xs font-medium">
                           {u.nombre.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="text-white font-medium">{u.nombre}</span>
+                      <span className="text-zinc-900 font-medium">{u.nombre}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{u.email}</td>
+                  <td className="px-4 py-3 text-zinc-600">{u.email}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${ROL_COLORS[u.rol]}`}
@@ -225,14 +225,14 @@ export default function UsuariosPage() {
                         <>
                           <CheckCircle2
                             size={14}
-                            className="text-emerald-400"
+                            className="text-emerald-700"
                           />
-                          <span className="text-emerald-400">Activo</span>
+                          <span className="text-emerald-700">Activo</span>
                         </>
                       ) : (
                         <>
-                          <XCircle size={14} className="text-zinc-600" />
-                          <span className="text-zinc-600">Inactivo</span>
+                          <XCircle size={14} className="text-zinc-400" />
+                          <span className="text-zinc-500">Inactivo</span>
                         </>
                       )}
                     </button>
@@ -241,13 +241,13 @@ export default function UsuariosPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEdit(u)}
-                        className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                        className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => openPass(u)}
-                        className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                        className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
                       >
                         <KeyRound size={14} />
                       </button>
@@ -262,27 +262,27 @@ export default function UsuariosPage() {
 
       {/* Modal crear/editar */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-md">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-900 max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-zinc-900">
               {selected ? "Editar usuario" : "Nuevo usuario"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-2">
             <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+              <Label className="text-zinc-600 text-xs uppercase tracking-wider">
                 Nombre
               </Label>
               <Input
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 required
-                className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                className="bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20"
                 placeholder="Nombre completo"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+              <Label className="text-zinc-600 text-xs uppercase tracking-wider">
                 Email
               </Label>
               <Input
@@ -290,13 +290,13 @@ export default function UsuariosPage() {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
-                className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                className="bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20"
                 placeholder="correo@empresa.com"
               />
             </div>
             {!selected && (
               <div className="space-y-1.5">
-                <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+                <Label className="text-zinc-600 text-xs uppercase tracking-wider">
                   Password
                 </Label>
                 <Input
@@ -306,40 +306,40 @@ export default function UsuariosPage() {
                     setForm({ ...form, password: e.target.value })
                   }
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                  className="bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20"
                   placeholder="Mínimo 8 caracteres"
                 />
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+              <Label className="text-zinc-600 text-xs uppercase tracking-wider">
                 Rol
               </Label>
               <select
                 value={form.rol}
                 onChange={(e) => setForm({ ...form, rol: e.target.value })}
-                className="w-full h-9 rounded-md bg-white/5 border border-white/10 text-white text-sm px-3 focus:outline-none focus:ring-1 focus:ring-white/20"
+                className="w-full h-9 rounded-md bg-white border border-zinc-200 text-zinc-900 text-sm px-3 focus:outline-none focus:ring-1 focus:ring-blue-600/20"
               >
-                <option value="operador_produccion" className="bg-zinc-900">
+                <option value="operador_produccion" className="bg-white">
                   Producción
                 </option>
-                <option value="operador_embarque" className="bg-zinc-900">
+                <option value="operador_embarque" className="bg-white">
                   Embarque
                 </option>
-                <option value="operador_po" className="bg-zinc-900">
+                <option value="operador_po" className="bg-white">
                   Operador PO
                 </option>
-                <option value="reportes" className="bg-zinc-900">
+                <option value="reportes" className="bg-white">
                   Consulta de reportes (solo Dashboard y Reportes)
                 </option>
-                <option value="superadmin" className="bg-zinc-900">
+                <option value="superadmin" className="bg-white">
                   Administrador
                 </option>
               </select>
             </div>
 
             {formError && (
-              <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {formError}
               </p>
             )}
@@ -349,14 +349,14 @@ export default function UsuariosPage() {
                 type="button"
                 variant="ghost"
                 onClick={closeModal}
-                className="flex-1 text-zinc-400 hover:text-white border border-white/10"
+                className="flex-1 text-zinc-600 hover:text-zinc-900 border border-zinc-200"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={isPending}
-                className="flex-1 bg-white text-zinc-950 hover:bg-zinc-100"
+                className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
               >
                 {isPending
                   ? "Guardando..."
@@ -371,29 +371,29 @@ export default function UsuariosPage() {
 
       {/* Modal cambiar password */}
       <Dialog open={passModal} onOpenChange={setPassModal}>
-        <DialogContent className="bg-zinc-900 border-white/10 text-white max-w-sm">
+        <DialogContent className="bg-white border-zinc-200 text-zinc-900 max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-white">Cambiar contraseña</DialogTitle>
+            <DialogTitle className="text-zinc-900">Cambiar contraseña</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <p className="text-sm text-zinc-500">
-              Usuario: <span className="text-white">{selected?.nombre}</span>
+              Usuario: <span className="text-zinc-900">{selected?.nombre}</span>
             </p>
             <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs uppercase tracking-wider">
+              <Label className="text-zinc-600 text-xs uppercase tracking-wider">
                 Nueva contraseña
               </Label>
               <Input
                 type="password"
                 value={newPass}
                 onChange={(e) => setNewPass(e.target.value)}
-                className="bg-white/5 border-white/10 text-white focus-visible:ring-white/20"
+                className="bg-white border-zinc-200 text-zinc-900 focus-visible:ring-blue-600/20"
                 placeholder="Mínimo 8 caracteres"
               />
             </div>
 
             {formError && (
-              <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {formError}
               </p>
             )}
@@ -402,7 +402,7 @@ export default function UsuariosPage() {
               <Button
                 variant="ghost"
                 onClick={() => setPassModal(false)}
-                className="flex-1 text-zinc-400 hover:text-white border border-white/10"
+                className="flex-1 text-zinc-600 hover:text-zinc-900 border border-zinc-200"
               >
                 Cancelar
               </Button>
@@ -411,7 +411,7 @@ export default function UsuariosPage() {
                   passMut.mutate({ id: selected.id, password: newPass })
                 }
                 disabled={passMut.isPending || !newPass}
-                className="flex-1 bg-white text-zinc-950 hover:bg-zinc-100"
+                className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
               >
                 {passMut.isPending ? "Guardando..." : "Cambiar"}
               </Button>

@@ -97,7 +97,7 @@ export default function SkusPage() {
               size="sm"
               onClick={() => fileRef.current.click()}
               disabled={validarMut.isPending || cargarMut.isPending}
-              className="bg-white text-zinc-950 hover:bg-zinc-100 gap-1.5"
+              className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
             >
               <Upload size={14} />
               {validarMut.isPending ? "Revisando archivo..." : "Importar Excel"}
@@ -108,7 +108,7 @@ export default function SkusPage() {
 
       {/* Revisión / resultado de la importación */}
       {error && (
-        <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400 flex items-center gap-2">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
           <XCircle size={14} className="shrink-0" />
           {error}
         </div>
@@ -128,21 +128,21 @@ export default function SkusPage() {
       <div className="relative mb-4">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
         />
         <Input
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Buscar por SKU, UPC o nombre..."
-          className="pl-8 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 h-9"
+          className="pl-8 bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9"
         />
       </div>
 
       {/* Tabla */}
-      <div className="rounded-xl border border-white/5 overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/5 bg-white/[0.02]">
+            <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 SKU
               </th>
@@ -166,14 +166,14 @@ export default function SkusPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             ) : skus.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center">
-                  <div className="flex flex-col items-center gap-2 text-zinc-600">
+                  <div className="flex flex-col items-center gap-2 text-zinc-500">
                     <FileSpreadsheet size={24} />
                     <span className="text-sm">
                       {search
@@ -187,20 +187,20 @@ export default function SkusPage() {
               skus.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  className="border-b border-zinc-200 hover:bg-zinc-50 transition-colors"
                 >
-                  <td className="px-4 py-3 text-white font-mono text-xs">
+                  <td className="px-4 py-3 text-zinc-900 font-mono text-xs">
                     {s.sku_number}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">
+                  <td className="px-4 py-3 text-zinc-600 font-mono text-xs">
                     {s.upc}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{s.style_no}</td>
-                  <td className="px-4 py-3 text-zinc-300">{s.style_name}</td>
-                  <td className="px-4 py-3 text-zinc-400">
+                  <td className="px-4 py-3 text-zinc-600">{s.style_no}</td>
+                  <td className="px-4 py-3 text-zinc-700">{s.style_name}</td>
+                  <td className="px-4 py-3 text-zinc-600">
                     {s.color_name || "—"}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{s.size}</td>
+                  <td className="px-4 py-3 text-zinc-600">{s.size}</td>
                 </tr>
               ))
             )}

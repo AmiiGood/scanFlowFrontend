@@ -44,18 +44,18 @@ export default function BackupPage() {
         <button
           onClick={() => handleBackup(true)}
           disabled={!!loading}
-          className="group relative rounded-xl border border-white/5 bg-white/[0.02] p-6 text-left hover:bg-white/[0.04] hover:border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="group relative rounded-xl border border-zinc-200 bg-white p-6 text-left hover:bg-zinc-50 hover:border-zinc-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center">
               {loading === "full"
-                ? <Loader2 size={18} className="text-blue-400 animate-spin" />
-                : <HardDrive size={18} className="text-blue-400" />
+                ? <Loader2 size={18} className="text-blue-700 animate-spin" />
+                : <HardDrive size={18} className="text-blue-700" />
               }
             </div>
-            <Download size={14} className="text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1" />
+            <Download size={14} className="text-zinc-400 group-hover:text-zinc-600 transition-colors mt-1" />
           </div>
-          <p className="text-white font-semibold mb-1">Backup completo</p>
+          <p className="text-zinc-900 font-semibold mb-1">Backup completo</p>
           <p className="text-xs text-zinc-500 leading-relaxed">
             Estructura + todos los datos actuales. Incluye usuarios seed garantizados.
           </p>
@@ -65,18 +65,18 @@ export default function BackupPage() {
         <button
           onClick={() => handleBackup(false)}
           disabled={!!loading}
-          className="group relative rounded-xl border border-white/5 bg-white/[0.02] p-6 text-left hover:bg-white/[0.04] hover:border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="group relative rounded-xl border border-zinc-200 bg-white p-6 text-left hover:bg-zinc-50 hover:border-zinc-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center">
               {loading === "schema"
-                ? <Loader2 size={18} className="text-violet-400 animate-spin" />
-                : <FileCode size={18} className="text-violet-400" />
+                ? <Loader2 size={18} className="text-violet-700 animate-spin" />
+                : <FileCode size={18} className="text-violet-700" />
               }
             </div>
-            <Download size={14} className="text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1" />
+            <Download size={14} className="text-zinc-400 group-hover:text-zinc-600 transition-colors mt-1" />
           </div>
-          <p className="text-white font-semibold mb-1">Solo estructura</p>
+          <p className="text-zinc-900 font-semibold mb-1">Solo estructura</p>
           <p className="text-xs text-zinc-500 leading-relaxed">
             DDL de tablas sin datos. Útil para entornos nuevos. Incluye usuarios seed.
           </p>
@@ -87,45 +87,45 @@ export default function BackupPage() {
       {last && (
         <div className={`rounded-xl border px-5 py-4 flex items-start gap-3 ${
           last.ok
-            ? "border-emerald-500/20 bg-emerald-500/5"
-            : "border-red-500/20 bg-red-500/5"
+            ? "border-emerald-200 bg-emerald-50"
+            : "border-red-200 bg-red-50"
         }`}>
           {last.ok
-            ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-            : <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+            ? <CheckCircle2 size={16} className="text-emerald-700 shrink-0 mt-0.5" />
+            : <AlertCircle size={16} className="text-red-700 shrink-0 mt-0.5" />
           }
           <div>
             {last.ok ? (
               <>
-                <p className="text-sm text-emerald-400 font-medium">Backup generado</p>
+                <p className="text-sm text-emerald-700 font-medium">Backup generado</p>
                 <p className="text-xs text-zinc-500 font-mono mt-0.5">{last.filename}</p>
               </>
             ) : (
-              <p className="text-sm text-red-400">{last.msg}</p>
+              <p className="text-sm text-red-700">{last.msg}</p>
             )}
           </div>
         </div>
       )}
 
       {/* Info usuarios seed */}
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+      <div className="rounded-xl border border-zinc-200 bg-white p-5">
         <div className="flex items-center gap-2 mb-4">
           <Database size={13} className="text-zinc-500" />
           <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Usuarios garantizados en backup</p>
         </div>
         <div className="space-y-2">
           {[
-            { email: "admin@foamcreations.mx", rol: "Administrador", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
-            { email: "produccion@foamcreations.mx", rol: "Producción", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-            { email: "embarque@foamcreations.mx", rol: "Embarque", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+            { email: "admin@foamcreations.mx", rol: "Administrador", color: "text-violet-700 bg-violet-50 border-violet-200" },
+            { email: "produccion@foamcreations.mx", rol: "Producción", color: "text-blue-700 bg-blue-50 border-blue-200" },
+            { email: "embarque@foamcreations.mx", rol: "Embarque", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
           ].map((u) => (
             <div key={u.email} className="flex items-center justify-between">
-              <span className="text-xs text-zinc-400 font-mono">{u.email}</span>
+              <span className="text-xs text-zinc-600 font-mono">{u.email}</span>
               <span className={`text-xs px-2 py-0.5 rounded-md border font-medium ${u.color}`}>{u.rol}</span>
             </div>
           ))}
         </div>
-        <p className="text-xs text-zinc-700 mt-3">Contraseña: <span className="font-mono text-zinc-600">*FCMX2026</span></p>
+        <p className="text-xs text-zinc-500 mt-3">Contraseña: <span className="font-mono text-zinc-500">*FCMX2026</span></p>
       </div>
     </div>
   );
