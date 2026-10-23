@@ -25,5 +25,6 @@ export const getDetalleCajas = (params = {}) =>
   api.get("/reports/detalle-cajas", { params });
 export const getDetalleQRs = (params = {}) =>
   api.get("/reports/detalle-qrs", { params });
+export const getUsuariosReporte = () => api.get("/reports/usuarios");
 export const getDashboard = () => api.get("/reports/dashboard");
 export const getQrsSinSKUPorUPC = () => api.get("/reports/qrs-sin-sku/upcs");

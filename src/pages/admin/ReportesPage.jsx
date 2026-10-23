@@ -12,6 +12,7 @@ import {
   getPOsReporte,
   getDetalleCajas,
   getDetalleQRs,
+  getUsuariosReporte,
 } from "@/api/reports";
 import { getLiberaciones } from "@/api/supervisores";
 import { exportConTipos, exportToExcel } from "@/lib/exportExcel";
@@ -330,9 +331,30 @@ function TabTrazabilidad() {
   );
 }
 
+// Filtro por usuario (cada línea de Producción tiene el suyo).
+function CampoUsuario({ value, onChange, label = "Usuario" }) {
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ["usuarios-reporte"],
+    queryFn: () => getUsuariosReporte().then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  return (
+    <Campo label={label}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+        <option value="">Todos</option>
+        {usuarios.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.nombre}{u.activo ? "" : " (inactivo)"}
+          </option>
+        ))}
+      </select>
+    </Campo>
+  );
+}
+
 // --- Tab: Cajas por SKU ---
 function TabCajas() {
-  const [filters, setFilters] = useState({ sku: "", estado: "", po_number: "", fecha_desde: "", fecha_hasta: "" });
+  const [filters, setFilters] = useState({ sku: "", estado: "", po_number: "", fecha_desde: "", fecha_hasta: "", usuario: "" });
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -342,6 +364,7 @@ function TabCajas() {
     estado: filters.estado,
     fecha_desde: filters.fecha_desde,
     fecha_hasta: filters.fecha_hasta,
+    usuario: filters.usuario,
   };
 
   const { data, isLoading } = useQuery({
@@ -366,6 +389,7 @@ function TabCajas() {
           Pares: r.cantidad_pares,
           "QRs Escaneados": r.qrs_escaneados,
           Estado: r.estado,
+          Usuario: r.usuario || "",
           "Fecha y hora": fmtFechaHora(r.fecha_hora),
         })),
         "cajas-por-sku",
@@ -383,7 +407,7 @@ function TabCajas() {
   return (
     <div className="space-y-4">
       <Panel>
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+        <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 pt-5">
           <Campo label="SKU" className="col-span-2">
             <input value={filters.sku} onChange={(e) => set("sku", e.target.value)} placeholder="Ej. 10001-001-M7W9" className={inputCls} />
           </Campo>
@@ -403,6 +427,7 @@ function TabCajas() {
           <Campo label="Hasta">
             <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
           </Campo>
+          <CampoUsuario value={filters.usuario} onChange={(v) => set("usuario", v)} />
         </div>
       </Panel>
 
@@ -421,14 +446,15 @@ function TabCajas() {
               <th className={thNum}>Pares</th>
               <th className={thNum}>Escaneados</th>
               <th className={th}>Estado</th>
+              <th className={th}>Usuario</th>
               <th className={th}>Fecha y hora</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <FilaMensaje cols={8}>Cargando…</FilaMensaje>
+              <FilaMensaje cols={9}>Cargando…</FilaMensaje>
             ) : !data?.data?.length ? (
-              <FilaMensaje cols={8}>Sin cajas con estos filtros</FilaMensaje>
+              <FilaMensaje cols={9}>Sin cajas con estos filtros</FilaMensaje>
             ) : (
               data.data.map((r) => (
                 <tr key={r.id} className="hover:bg-zinc-50">
@@ -441,6 +467,7 @@ function TabCajas() {
                   <td className={tdNum}>{r.cantidad_pares}</td>
                   <td className={cn(tdNum, +r.qrs_escaneados < r.cantidad_pares ? "text-amber-700 font-medium" : "text-zinc-900")}>{r.qrs_escaneados}</td>
                   <td className={td}><Estado valor={r.estado} /></td>
+                  <td className={cn(td, "whitespace-nowrap text-xs")}>{r.usuario || "—"}</td>
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
                 </tr>
               ))
@@ -731,6 +758,7 @@ const COLUMNAS_CAJA_QR = [
   { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
   { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
   { titulo: "turno", valor: (r) => r.turno, ancho: 10 },
+  { titulo: "usuario", valor: (r) => r.usuario, ancho: 16 },
   { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
   { titulo: "token", valor: (r) => r.token, ancho: 16 },
   { titulo: "caja", valor: (r) => r.codigo_caja, ancho: 34 },
@@ -747,7 +775,7 @@ function hoyLocal() {
 function TabDetalleCajas() {
   // Arranca en el día de hoy: sin fechas, la primera página serían los
   // escaneos más viejos.
-  const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", turno: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
+  const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", turno: "", usuario: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -757,6 +785,7 @@ function TabDetalleCajas() {
     po_number: useDebounce(filters.po_number, 300),
     estado: filters.estado,
     turno: filters.turno,
+    usuario: filters.usuario,
     fecha_desde: filters.fecha_desde,
     fecha_hasta: filters.fecha_hasta,
   };
@@ -788,7 +817,7 @@ function TabDetalleCajas() {
   return (
     <div className="space-y-4">
       <Panel>
-        <div className="grid grid-cols-2 lg:grid-cols-8 gap-3 pt-5">
+        <div className="grid grid-cols-2 lg:grid-cols-9 gap-3 pt-5">
           <Campo label="Código de caja" className="col-span-2">
             <input value={filters.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Todo o parte del código" className={cn(inputCls, "font-mono")} />
           </Campo>
@@ -819,6 +848,7 @@ function TabDetalleCajas() {
               <option value="C">C · 00:00–08:00</option>
             </select>
           </Campo>
+          <CampoUsuario value={filters.usuario} onChange={(v) => set("usuario", v)} />
         </div>
       </Panel>
 
@@ -846,6 +876,7 @@ function TabDetalleCajas() {
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtFecha(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
+                  <td className={cn(td, "whitespace-nowrap text-xs")}>{r.usuario || "—"}</td>
                   <td className={cn(td, "font-mono text-[11px] text-zinc-500 whitespace-nowrap")}>{r.codigo_qr}</td>
                   <td className={cn(td, "font-mono text-xs text-zinc-900")}>{r.token}</td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja}</td>
@@ -869,6 +900,7 @@ const COLUMNAS_QR = [
   { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
   { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
   { titulo: "turno", valor: (r) => r.turno, ancho: 10 },
+  { titulo: "usuario", valor: (r) => r.usuario, ancho: 16 },
   { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
   { titulo: "token", valor: (r) => r.token, ancho: 16 },
   { titulo: "upc", valor: (r) => r.upc, ancho: 15 },
@@ -886,6 +918,7 @@ const COLUMNAS_QR = [
   { titulo: "estado_carton", valor: (r) => r.carton_estado, ancho: 12 },
   { titulo: "fecha_embarque", valor: (r) => r.embarcado_at, tipo: "fecha", ancho: 14 },
   { titulo: "hora_embarque", valor: (r) => r.embarcado_at, tipo: "hora", ancho: 14 },
+  { titulo: "usuario_embarque", valor: (r) => r.usuario_embarque, ancho: 16 },
   { titulo: "po", valor: (r) => r.po_number, ancho: 12 },
   { titulo: "estado_po", valor: (r) => r.po_estado, ancho: 11 },
   { titulo: "cfm_xf_date", valor: (r) => r.cfm_xf_date, tipo: "fecha", ancho: 12 },
@@ -893,11 +926,11 @@ const COLUMNAS_QR = [
   { titulo: "hora_envio_t4", valor: (r) => r.enviado_t4_at, tipo: "hora", ancho: 14 },
 ];
 
-const COLUMNAS_QR_PANTALLA = ["fecha", "hora", "turno", "token", "sku", "talla", "caja", "cartón", "PO", "estado"];
+const COLUMNAS_QR_PANTALLA = ["fecha", "hora", "turno", "usuario", "token", "sku", "talla", "caja", "cartón", "PO", "estado"];
 
 function TabDetalleQRs() {
   const [filters, setFilters] = useState(() => ({
-    codigo: "", sku: "", caja: "", po_number: "", estado: "", embarcado: "", turno: "",
+    codigo: "", sku: "", caja: "", po_number: "", estado: "", embarcado: "", turno: "", usuario: "",
     fecha_desde: hoyLocal(), fecha_hasta: hoyLocal(),
   }));
   const [page, setPage] = useState(1);
@@ -911,6 +944,7 @@ function TabDetalleQRs() {
     estado: filters.estado,
     embarcado: filters.embarcado,
     turno: filters.turno,
+    usuario: filters.usuario,
     fecha_desde: filters.fecha_desde,
     fecha_hasta: filters.fecha_hasta,
   };
@@ -984,6 +1018,7 @@ function TabDetalleQRs() {
               <option value="C">C · 00:00–08:00</option>
             </select>
           </Campo>
+          <CampoUsuario value={filters.usuario} onChange={(v) => set("usuario", v)} />
         </div>
       </Panel>
 
@@ -1012,6 +1047,7 @@ function TabDetalleQRs() {
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtFecha(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
+                  <td className={cn(td, "whitespace-nowrap text-xs")}>{r.usuario || "—"}</td>
                   <td className={cn(td, "font-mono text-xs text-zinc-900")} title={r.codigo_qr}>{r.token}</td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.sku_number}</td>
                   <td className={cn(td, "text-xs")}>{r.size}</td>
