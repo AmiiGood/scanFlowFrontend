@@ -2,15 +2,16 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { buscarParaReset, desasociarCaja, resetCaja, resetCarton, resetPO } from "@/api/reset";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useAuthStore } from "@/store/authStore";
+import { usePermisos } from "@/hooks/usePermisos";
 import PageHeader from "@/components/layout/PageHeader";
 import AutorizarReseteoModal from "@/components/admin/AutorizarReseteoModal";
 import { Trash2, AlertTriangle, Box, Package, FileText, CheckCircle2, XCircle, Loader2, Search, X, Unlink } from "lucide-react";
 
+// Cada pestaña aparece si el perfil tiene alguno de sus permisos.
 const TABS = [
-  { key: "caja",   label: "Caja",   icon: Box,      placeholder: "Escanea o escribe el código de la caja, o un SKU" },
-  { key: "carton", label: "Cartón", icon: Package,  placeholder: "Escanea o escribe el cartón, o un número de PO" },
-  { key: "po",     label: "PO",     icon: FileText, placeholder: "Escribe el número de PO" },
+  { key: "caja",   label: "Caja",   icon: Box,      placeholder: "Escanea o escribe el código de la caja, o un SKU", permisos: ["reset.caja", "reset.desasociar"] },
+  { key: "carton", label: "Cartón", icon: Package,  placeholder: "Escanea o escribe el cartón, o un número de PO", permisos: ["reset.carton"] },
+  { key: "po",     label: "PO",     icon: FileText, placeholder: "Escribe el número de PO", permisos: ["reset.po"] },
 ];
 
 const ADVERTENCIA = {
@@ -47,10 +48,12 @@ function detalle(tipo, r) {
 
 export default function ResetPage() {
   const qc = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-  // El superadmin solo da el motivo; los demás, además, el gafete de un supervisor.
-  const requiereGafete = user?.rol !== "superadmin";
-  const [tab, setTab]           = useState("caja");
+  const { puede, alguno } = usePermisos();
+  // Sin el permiso "reset.sin_gafete", cada reset pide el gafete de un supervisor.
+  const requiereGafete = !puede("reset.sin_gafete");
+  const tabs = TABS.filter((t) => alguno(t.permisos));
+  const [tabElegida, setTab]    = useState(null);
+  const tab = tabs.some((t) => t.key === tabElegida) ? tabElegida : tabs[0]?.key;
   const [texto, setTexto]       = useState("");
   const [seleccion, setSeleccion] = useState(null);
   const [accion, setAccion]     = useState(null); // "reset" | "desasociar"
@@ -80,7 +83,9 @@ export default function ResetPage() {
   // Desasociar: la caja sale de sus cartones pero conserva su escaneo de
   // Producción, para volver a asignarla (por ejemplo, si se abre o corrige).
   const puedeDesasociar =
-    tab === "caja" && seleccion && (seleccion.carton_id || seleccion.pares_en_cartones > 0);
+    tab === "caja" && seleccion && puede("reset.desasociar") &&
+    (seleccion.carton_id || seleccion.pares_en_cartones > 0);
+  const puedeResetear = !!seleccion && puede(`reset.${tab}`);
 
   function handleTabChange(key) {
     setTab(key);
@@ -97,6 +102,7 @@ export default function ResetPage() {
   }
 
   const tabActual = TABS.find((t) => t.key === tab);
+  if (!tabActual) return null;
 
   return (
     <div className="p-8 space-y-6 max-w-3xl">
@@ -111,7 +117,7 @@ export default function ResetPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-zinc-50 border border-zinc-200 rounded-xl p-1">
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
@@ -208,7 +214,7 @@ export default function ResetPage() {
       )}
 
       {/* Reset */}
-      {seleccion && !result && (
+      {puedeResetear && !result && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />

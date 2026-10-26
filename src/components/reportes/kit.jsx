@@ -4,6 +4,8 @@
 import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtNum } from "@/lib/formato";
+import { useAuthStore } from "@/store/authStore";
+import { puede } from "@/lib/permisos";
 
 export function PageTitle({ title, description, actions }) {
   return (
@@ -94,6 +96,8 @@ export function Campo({ label, children, className }) {
 }
 
 export function BotonExportar({ onClick, disabled, cargando, children = "Exportar Excel" }) {
+  const user = useAuthStore((s) => s.user);
+  if (!puede(user, "reportes.exportar")) return null;
   return (
     <button
       type="button"

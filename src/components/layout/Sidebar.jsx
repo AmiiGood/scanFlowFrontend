@@ -1,7 +1,8 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLockStore } from "@/store/lockStore";
 import { cn } from "@/lib/utils";
+import { CONFIGURACION, EMBARQUE, RESET, puedeAlguno } from "@/lib/permisos";
 import {
   LayoutDashboard,
   PackageOpen,
@@ -18,32 +19,21 @@ import {
   Lock,
 } from "lucide-react";
 
-const navByRole = {
-  operador_produccion: [
-    { to: "/produccion", icon: PackageOpen, label: "Producción" },
-  ],
-  operador_embarque: [{ to: "/embarque", icon: Truck, label: "Embarque" }],
-  operador_po: [
-    { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders" },
-    { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
-  ],
-  reportes: [
-    { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
-    { to: "/admin/reset", icon: Trash2, label: "Reset" },
-  ],
-  superadmin: [
-    { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/admin/usuarios", icon: Users, label: "Usuarios" },
-    { to: "/admin/skus", icon: ShoppingBag, label: "SKUs" },
-    { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders" },
-    { to: "/admin/qr-import", icon: QrCode, label: "Importar QRs" },
-    { to: "/admin/reportes", icon: BarChart3, label: "Reportes" },
-    { to: "/admin/backup", icon: Database, label: "Backup" },
-    { to: "/admin/reset", icon: Trash2, label: "Reset" },
-    { to: "/admin/configuracion", icon: Settings, label: "Configuración" },
-  ],
-};
+// Cada sección aparece si el perfil tiene alguno de sus permisos. Las
+// estaciones (Producción, Embarque) no se listan al Administrador, como antes.
+const NAV = [
+  { to: "/produccion", icon: PackageOpen, label: "Producción", permiso: "produccion.escanear", estacion: true },
+  { to: "/embarque", icon: Truck, label: "Embarque", permiso: EMBARQUE, estacion: true },
+  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", permiso: "dashboard.ver" },
+  { to: "/admin/usuarios", icon: Users, label: "Usuarios", permiso: "usuarios.administrar" },
+  { to: "/admin/skus", icon: ShoppingBag, label: "SKUs", permiso: "skus.administrar" },
+  { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders", permiso: "pos.ver" },
+  { to: "/admin/qr-import", icon: QrCode, label: "Importar QRs", permiso: "qrs.importar" },
+  { to: "/admin/reportes", icon: BarChart3, label: "Reportes", permiso: "reportes.ver" },
+  { to: "/admin/backup", icon: Database, label: "Backup", permiso: "backup.generar" },
+  { to: "/admin/reset", icon: Trash2, label: "Reset", permiso: RESET },
+  { to: "/admin/configuracion", icon: Settings, label: "Configuración", permiso: CONFIGURACION },
+];
 
 // Clases del menú (tema claro, el de toda la aplicación).
 const t = {
@@ -64,7 +54,9 @@ const t = {
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const locked = useLockStore((s) => s.locked);
-  const nav = navByRole[user?.rol] || [];
+  const nav = NAV.filter(
+    (item) => puedeAlguno(user, item.permiso) && !(item.estacion && user?.rol === "superadmin"),
+  );
 
   const rolLabel = {
     operador_produccion: "Producción",
@@ -130,9 +122,9 @@ export default function Sidebar() {
 
       {/* Aviso de bloqueo */}
       {locked && (
-        <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <Lock size={13} className="text-amber-400 shrink-0" />
-          <span className="text-[11px] text-amber-300 leading-tight">
+        <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+          <Lock size={13} className="text-amber-700 shrink-0" />
+          <span className="text-[11px] text-amber-800 leading-tight">
             Caja en proceso · navegación bloqueada
           </span>
         </div>
@@ -185,7 +177,7 @@ export default function Sidebar() {
               {user?.nombre}
             </p>
             <p className={cn("text-xs truncate", t.rol)}>
-              {rolLabel[user?.rol]}
+              {user?.perfil || rolLabel[user?.rol]}
             </p>
           </div>
         </div>

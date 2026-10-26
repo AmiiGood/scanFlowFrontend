@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BotonPlantilla, RevisionPOs } from "@/components/admin/RevisionImportacion";
+import { usePermisos } from "@/hooks/usePermisos";
 
 const ESTADO_STYLES = {
   pendiente: "bg-zinc-100 text-zinc-600 border-zinc-200",
@@ -27,6 +28,7 @@ const ESTADO_STYLES = {
 const ESTADOS = ["pendiente", "en_proceso", "completo", "enviado", "cancelado"];
 
 export default function PurchaseOrdersPage() {
+  const { puede } = usePermisos();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const fileRef = useRef();
@@ -115,6 +117,7 @@ export default function PurchaseOrdersPage() {
               className="hidden"
               onChange={handleFile}
             />
+            {puede("pos.importar") && (<>
             <BotonPlantilla href="/plantillas/plantilla_importar_POs.xlsx">Plantilla</BotonPlantilla>
             <Button
               size="sm"
@@ -125,6 +128,7 @@ export default function PurchaseOrdersPage() {
               <Upload size={14} />
               {validarMut.isPending ? "Revisando archivo..." : "Importar Excel"}
             </Button>
+            </>)}
           </>
         }
       />

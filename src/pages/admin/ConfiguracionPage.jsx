@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getConfig, updateConfig } from "@/api/config";
 import PageHeader from "@/components/layout/PageHeader";
 import SupervisoresPanel from "@/components/admin/SupervisoresPanel";
+import { usePermisos } from "@/hooks/usePermisos";
 import { Lock, ShieldAlert, Loader2 } from "lucide-react";
 
 export default function ConfiguracionPage() {
   const qc = useQueryClient();
+  const { puede } = usePermisos();
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["config"],
@@ -33,6 +35,7 @@ export default function ConfiguracionPage() {
         description="Ajustes de comportamiento del sistema"
       />
 
+      {puede("config.editar") && (
       <div className="rounded-xl border border-zinc-200 bg-white p-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-start gap-3">
@@ -83,7 +86,9 @@ export default function ConfiguracionPage() {
         </div>
       </div>
 
-      {bloqueo && (
+      )}
+
+      {bloqueo && puede("config.editar") && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-3">
           <ShieldAlert size={16} className="text-amber-700 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 leading-relaxed">
@@ -96,7 +101,7 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      <SupervisoresPanel />
+      {puede("supervisores.administrar") && <SupervisoresPanel />}
     </div>
   );
 }

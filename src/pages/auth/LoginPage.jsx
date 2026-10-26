@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { pantallaInicio } from "@/lib/permisos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,13 +19,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      if (user.rol === "operador_produccion") navigate("/produccion", { replace: true });
-      else if (user.rol === "operador_embarque") navigate("/embarque", { replace: true });
-      else if (user.rol === "operador_po") navigate("/admin/purchase-orders", { replace: true });
-      else navigate("/admin", { replace: true });
-    }
-  }, [user]);
+    if (user?.permisos) navigate(pantallaInicio(user), { replace: true });
+  }, [user, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -32,10 +28,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const u = await login(email, password);
-      if (u.rol === "operador_produccion") navigate("/produccion");
-      else if (u.rol === "operador_embarque") navigate("/embarque");
-      else if (u.rol === "operador_po") navigate("/admin/purchase-orders");
-      else navigate("/admin");
+      navigate(pantallaInicio(u));
     } catch (err) {
       setError(err.response?.data?.error || "Error al iniciar sesión");
     } finally {

@@ -22,6 +22,7 @@ import { useSonidosEscaneo } from "@/hooks/useSonidosEscaneo";
 import { esEtiquetaCaja, normalizarCodigo } from "@/lib/codigosEscaneo";
 import EncabezadoEmbarque, { SelectorModo } from "./EncabezadoEmbarque";
 import MusicalPorPO from "./MusicalPorPO";
+import { usePermisos } from "@/hooks/usePermisos";
 
 function getModoEscaneo(carton) {
   if (!carton) return null;
@@ -164,13 +165,17 @@ function ResumenPOPanel({ resumen, cartonActivoId }) {
 const CLAVE_MODO = "scanflow.embarque.modo";
 
 export default function EmbarquePage() {
-  const [modo, setModo] = useState(() => {
+  const { puede } = usePermisos();
+  const modos = [puede("embarque.escanear") && "carton", puede("embarque.musical_po") && "musical-po"].filter(Boolean);
+  const [guardado, setModo] = useState(() => {
     try {
       return localStorage.getItem(CLAVE_MODO) === "musical-po" ? "musical-po" : "carton";
     } catch {
       return "carton";
     }
   });
+  // Si el perfil no tiene el modo guardado, se abre el que sí tiene.
+  const modo = modos.includes(guardado) ? guardado : modos[0];
   function cambiarModo(m) {
     setModo(m);
     try {
@@ -179,7 +184,7 @@ export default function EmbarquePage() {
       // Sin almacenamiento: el modo se pierde al recargar.
     }
   }
-  const selector = <SelectorModo modo={modo} onCambiar={cambiarModo} />;
+  const selector = modos.length > 1 ? <SelectorModo modo={modo} onCambiar={cambiarModo} /> : null;
   return modo === "musical-po" ? (
     <MusicalPorPO selector={selector} />
   ) : (

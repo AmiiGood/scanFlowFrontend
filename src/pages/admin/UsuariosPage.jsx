@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUsers, createUser, updateUser, changePassword } from "@/api/users";
+import { getPerfiles } from "@/api/perfiles";
+import PerfilesPanel from "@/components/admin/PerfilesPanel";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +42,7 @@ const EMPTY_FORM = {
   nombre: "",
   email: "",
   password: "",
-  rol: "operador_produccion",
+  perfil_id: "",
 };
 
 export default function UsuariosPage() {
@@ -51,10 +53,16 @@ export default function UsuariosPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [newPass, setNewPass] = useState("");
   const [formError, setFormError] = useState("");
+  const [vista, setVista] = useState("usuarios");
+  const [aviso, setAviso] = useState("");
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: () => getUsers().then((r) => r.data),
+  });
+  const { data: perfiles = [] } = useQuery({
+    queryKey: ["perfiles"],
+    queryFn: () => getPerfiles().then((r) => r.data),
   });
 
   const createMut = useMutation({
@@ -89,12 +97,17 @@ export default function UsuariosPage() {
 
   const toggleActivoMut = useMutation({
     mutationFn: ({ id, activo }) => updateUser(id, { activo }),
-    onSuccess: () => qc.invalidateQueries(["users"]),
+    onSuccess: () => {
+      setAviso("");
+      qc.invalidateQueries(["users"]);
+    },
+    onError: (e) => setAviso(e.response?.data?.error || "No se pudo cambiar el estado"),
   });
 
   function openCreate() {
     setSelected(null);
-    setForm(EMPTY_FORM);
+    const base = perfiles.find((p) => p.clave === "operador_produccion") || perfiles[0];
+    setForm({ ...EMPTY_FORM, perfil_id: base?.id || "" });
     setFormError("");
     setModalOpen(true);
   }
@@ -105,7 +118,7 @@ export default function UsuariosPage() {
       nombre: user.nombre,
       email: user.email,
       password: "",
-      rol: user.rol,
+      perfil_id: user.perfil_id || "",
     });
     setFormError("");
     setModalOpen(true);
@@ -129,10 +142,10 @@ export default function UsuariosPage() {
     e.preventDefault();
     setFormError("");
     if (selected) {
-      const data = { nombre: form.nombre, email: form.email, rol: form.rol };
+      const data = { nombre: form.nombre, email: form.email, perfil_id: Number(form.perfil_id) || undefined };
       updateMut.mutate({ id: selected.id, data });
     } else {
-      createMut.mutate(form);
+      createMut.mutate({ ...form, perfil_id: Number(form.perfil_id) });
     }
   }
 
@@ -142,9 +155,9 @@ export default function UsuariosPage() {
     <div className="p-8">
       <PageHeader
         title="Usuarios"
-        description="Gestión de acceso al sistema"
+        description="Gestión de acceso al sistema: usuarios y sus perfiles de permisos"
         actions={
-          <Button
+          vista === "usuarios" && <Button
             onClick={openCreate}
             size="sm"
             className="bg-blue-600 text-white hover:bg-blue-700 gap-1.5"
@@ -154,6 +167,28 @@ export default function UsuariosPage() {
           </Button>
         }
       />
+
+      <nav className="flex items-center mb-5 shadow-[inset_0_-1px_0_#e4e4e7]">
+        {[["usuarios", "Usuarios"], ["perfiles", "Perfiles y permisos"]].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setVista(id)}
+            className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 ${
+              vista === id ? "border-blue-600 text-zinc-900 font-medium" : "border-transparent text-zinc-500 hover:text-zinc-900"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {vista === "perfiles" ? (
+        <PerfilesPanel />
+      ) : (
+      <>
+      {aviso && (
+        <p className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">{aviso}</p>
+      )}
 
       {/* Tabla */}
       <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
@@ -167,7 +202,7 @@ export default function UsuariosPage() {
                 Email
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
-                Rol
+                Perfil
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 Estado
@@ -211,7 +246,7 @@ export default function UsuariosPage() {
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${ROL_COLORS[u.rol]}`}
                     >
-                      {ROL_LABELS[u.rol]}
+                      {u.perfil || ROL_LABELS[u.rol]}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -219,6 +254,7 @@ export default function UsuariosPage() {
                       onClick={() =>
                         toggleActivoMut.mutate({ id: u.id, activo: !u.activo })
                       }
+                      title={u.activo ? "Desactivar usuario" : "Activar usuario"}
                       className="flex items-center gap-1.5 text-xs transition-colors"
                     >
                       {u.activo ? (
@@ -241,12 +277,16 @@ export default function UsuariosPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEdit(u)}
+                        aria-label={`Editar a ${u.nombre}`}
+                        title="Editar usuario"
                         className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => openPass(u)}
+                        aria-label={`Cambiar contraseña de ${u.nombre}`}
+                        title="Cambiar contraseña"
                         className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
                       >
                         <KeyRound size={14} />
@@ -259,6 +299,8 @@ export default function UsuariosPage() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {/* Modal crear/editar */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -313,29 +355,24 @@ export default function UsuariosPage() {
             )}
             <div className="space-y-1.5">
               <Label className="text-zinc-600 text-xs uppercase tracking-wider">
-                Rol
+                Perfil
               </Label>
               <select
-                value={form.rol}
-                onChange={(e) => setForm({ ...form, rol: e.target.value })}
+                value={form.perfil_id}
+                onChange={(e) => setForm({ ...form, perfil_id: e.target.value })}
+                required
                 className="w-full h-9 rounded-md bg-white border border-zinc-200 text-zinc-900 text-sm px-3 focus:outline-none focus:ring-1 focus:ring-blue-600/20"
               >
-                <option value="operador_produccion" className="bg-white">
-                  Producción
-                </option>
-                <option value="operador_embarque" className="bg-white">
-                  Embarque
-                </option>
-                <option value="operador_po" className="bg-white">
-                  Operador PO
-                </option>
-                <option value="reportes" className="bg-white">
-                  Consulta de reportes (solo Dashboard y Reportes)
-                </option>
-                <option value="superadmin" className="bg-white">
-                  Administrador
-                </option>
+                {perfiles.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-white">
+                    {p.nombre}
+                    {p.descripcion ? ` — ${p.descripcion}` : ""}
+                  </option>
+                ))}
               </select>
+              <p className="text-xs text-zinc-500">
+                Los permisos de cada perfil se ven y se editan en la pestaña «Perfiles y permisos».
+              </p>
             </div>
 
             {formError && (

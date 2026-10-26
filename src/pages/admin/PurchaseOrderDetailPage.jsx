@@ -7,7 +7,7 @@ import {
   cancelarPO,
   historialEnvios,
 } from "@/api/purchaseOrders";
-import { useAuth } from "@/hooks/useAuth";
+import { usePermisos } from "@/hooks/usePermisos";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +45,7 @@ export default function PurchaseOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { puede } = usePermisos();
   const [confirmModal, setConfirmModal] = useState(null); // 'enviar' | 'cancelar'
   const [historialOpen, setHistorialOpen] = useState(false);
   const [expandedCarton, setExpandedCarton] = useState(null);
@@ -96,12 +96,13 @@ export default function PurchaseOrderDetailPage() {
   // ejemplo, por SKUs que no estaban en el catálogo).
   const faltanImportar = Math.max(0, Number(po.cantidad_cartones || 0) - totalCartones);
   const puedeEnviar =
+    puede("pos.enviar_t4") &&
     faltanImportar === 0 &&
     (po.estado === "completo" ||
       (po.estado === "pendiente" &&
         cartonesCompletos === totalCartones &&
         totalCartones > 0));
-  const puedeCancelar = po.estado === "enviado" && user?.rol === "superadmin";
+  const puedeCancelar = po.estado === "enviado" && puede("pos.cancelar_t4");
 
   return (
     <div className="p-8 max-w-5xl">

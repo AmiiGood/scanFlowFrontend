@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import SinPermiso from "@/components/layout/SinPermiso";
+import { CONFIGURACION, EMBARQUE, RESET } from "@/lib/permisos";
 import AppLayout from "@/components/layout/AppLayout";
 import LoginPage from "@/pages/auth/LoginPage";
 
@@ -24,19 +26,13 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/unauthorized"
-        element={
-          <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-            <p className="text-zinc-400">
-              Sin permisos para acceder a esta sección.
-            </p>
-          </div>
-        }
+        element={<SinPermiso />}
       />
       {/* Producción */}
       <Route
         path="/produccion"
         element={
-          <ProtectedRoute roles={["operador_produccion", "superadmin"]}>
+          <ProtectedRoute permiso={"produccion.escanear"}>
             <AppLayout>
               <ProduccionPage />
             </AppLayout>
@@ -47,7 +43,7 @@ export default function App() {
       <Route
         path="/embarque"
         element={
-          <ProtectedRoute roles={["operador_embarque", "superadmin"]}>
+          <ProtectedRoute permiso={EMBARQUE}>
             <AppLayout>
               <EmbarquePage />
             </AppLayout>
@@ -58,7 +54,7 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute roles={["superadmin", "reportes"]}>
+          <ProtectedRoute permiso={"dashboard.ver"}>
             <AppLayout>
               <DashboardPage />
             </AppLayout>
@@ -68,7 +64,7 @@ export default function App() {
       <Route
         path="/admin/usuarios"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute permiso={"usuarios.administrar"}>
             <AppLayout>
               <UsuariosPage />
             </AppLayout>
@@ -78,7 +74,7 @@ export default function App() {
       <Route
         path="/admin/skus"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute permiso={"skus.administrar"}>
             <AppLayout>
               <SkusPage />
             </AppLayout>
@@ -88,7 +84,7 @@ export default function App() {
       <Route
         path="/admin/purchase-orders"
         element={
-          <ProtectedRoute roles={["superadmin", "operador_po"]}>
+          <ProtectedRoute permiso={"pos.ver"}>
             <AppLayout>
               <PurchaseOrdersPage />
             </AppLayout>
@@ -98,7 +94,7 @@ export default function App() {
       <Route
         path="/admin/purchase-orders/:id"
         element={
-          <ProtectedRoute roles={["superadmin", "operador_po"]}>
+          <ProtectedRoute permiso={"pos.ver"}>
             <AppLayout>
               <PurchaseOrderDetailPage />
             </AppLayout>
@@ -108,7 +104,7 @@ export default function App() {
       <Route
         path="/admin/qr-import"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute permiso={"qrs.importar"}>
             <AppLayout>
               <QRImportPage />
             </AppLayout>
@@ -118,7 +114,7 @@ export default function App() {
       <Route
         path="/admin/reportes"
         element={
-          <ProtectedRoute roles={["superadmin", "operador_po", "reportes"]}>
+          <ProtectedRoute permiso={"reportes.ver"}>
             <AppLayout>
               <ReportesPage />
             </AppLayout>
@@ -129,7 +125,7 @@ export default function App() {
       <Route
         path="/admin/backup"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute permiso={"backup.generar"}>
             <AppLayout>
               <BackupPage />
             </AppLayout>
@@ -139,7 +135,7 @@ export default function App() {
       <Route
         path="/admin/reset"
         element={
-          <ProtectedRoute roles={["superadmin", "reportes"]}>
+          <ProtectedRoute permiso={RESET}>
             <AppLayout>
               <ResetPage />
             </AppLayout>
@@ -149,7 +145,7 @@ export default function App() {
       <Route
         path="/admin/configuracion"
         element={
-          <ProtectedRoute roles={["superadmin"]}>
+          <ProtectedRoute permiso={CONFIGURACION}>
             <AppLayout>
               <ConfiguracionPage />
             </AppLayout>

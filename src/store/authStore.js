@@ -10,6 +10,8 @@ export const useAuthStore = create(
         localStorage.setItem("accessToken", accessToken);
         set({ user, accessToken });
       },
+      // Perfil y permisos vigentes (de /auth/me), sin tocar el token.
+      setUser: (datos) => set((s) => ({ user: s.user ? { ...s.user, ...datos } : s.user })),
       clearAuth: () => {
         localStorage.removeItem("accessToken");
         set({ user: null, accessToken: null });
