@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children, permiso }) {
   const setUser = useAuthStore((s) => s.setUser);
 
   const { data, isError } = useQuery({
-    queryKey: ["sesion"],
+    queryKey: ["sesion", user?.id],
     queryFn: () => getMe().then((r) => r.data),
     enabled: !!user,
     staleTime: 60 * 1000,
@@ -21,12 +21,15 @@ export default function ProtectedRoute({ children, permiso }) {
     refetchOnWindowFocus: true,
   });
 
+  // Solo vale la respuesta del usuario que tiene la sesión ahora.
+  const vigenteMe = data && data.id === user?.id ? data : null;
+
   useEffect(() => {
-    if (data) setUser(data);
-  }, [data, setUser]);
+    if (vigenteMe) setUser(vigenteMe);
+  }, [vigenteMe, setUser]);
 
   if (!user) return <Navigate to="/login" replace />;
-  const vigente = data ? { ...user, ...data } : user;
+  const vigente = vigenteMe ? { ...user, ...vigenteMe } : user;
   // Sesión iniciada antes de los perfiles: se espera a tener sus permisos.
   if (!vigente.permisos) return isError ? <Navigate to="/login" replace /> : null;
   if (permiso && !puedeAlguno(vigente, permiso)) return <Navigate to="/unauthorized" replace />;
