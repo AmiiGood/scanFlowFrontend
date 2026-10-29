@@ -25,6 +25,12 @@ export const getDetalleCajas = (params = {}) =>
   api.get("/reports/detalle-cajas", { params });
 export const getDetalleQRs = (params = {}) =>
   api.get("/reports/detalle-qrs", { params });
+// Los reportes por QR se exportan ya armados por el servidor (pueden ser
+// cientos de miles de filas y tardar un par de minutos).
+export const descargarDetalleCajas = (params = {}) =>
+  api.get("/reports/detalle-cajas/excel", { params, responseType: "blob" });
+export const descargarDetalleQRs = (params = {}) =>
+  api.get("/reports/detalle-qrs/excel", { params, responseType: "blob" });
 export const getUsuariosReporte = () => api.get("/reports/usuarios");
 export const getDashboard = () => api.get("/reports/dashboard");
 export const getQrsSinSKUPorUPC = () => api.get("/reports/qrs-sin-sku/upcs");

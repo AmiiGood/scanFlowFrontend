@@ -12,38 +12,25 @@ export function exportToExcel(data, filename, sheetName = "Reporte") {
   );
 }
 
-// Exporta con tipos por columna. columnas = [{ titulo, valor: (fila) => …,
-// tipo?: "fecha" | "hora", ancho? }]. Las fechas y horas llegan como texto
-// "YYYY-MM-DD HH:MM:SS" (hora de planta) y se guardan como fecha/hora de Excel,
-// así se pueden ordenar y filtrar.
-export function exportConTipos(columnas, filas, filename, sheetName = "Reporte") {
-  const ws = XLSX.utils.aoa_to_sheet([columnas.map((c) => c.titulo)]);
-  filas.forEach((fila, i) => {
-    columnas.forEach((col, j) => {
-      const ref = XLSX.utils.encode_cell({ r: i + 1, c: j });
-      const v = col.valor(fila);
-      if (v == null || v === "") return;
-      if (col.tipo === "fecha") {
-        const [y, m, d] = v.slice(0, 10).split("-").map(Number);
-        // Serial de Excel: días desde 1899-12-30.
-        ws[ref] = { t: "n", v: Date.UTC(y, m - 1, d) / 86400000 + 25569, z: "dd/mm/yyyy" };
-      } else if (col.tipo === "hora") {
-        const [h, mi, s] = v.slice(11, 19).split(":").map(Number);
-        ws[ref] = { t: "n", v: (h * 3600 + mi * 60 + s) / 86400, z: "hh:mm:ss AM/PM" };
-      } else {
-        ws[ref] = { t: typeof v === "number" ? "n" : "s", v };
-      }
-    });
-  });
-  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: filas.length, c: columnas.length - 1 } });
-  ws["!cols"] = columnas.map((c) => ({ wch: c.ancho || 14 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(
-    new Blob([buf], { type: "application/octet-stream" }),
-    `${filename}.xlsx`,
-  );
+// Excel que ya viene armado del servidor.
+export function guardarExcel(blob, filename) {
+  saveAs(blob, `${filename}.xlsx`);
+}
+
+// Mensaje de un error al exportar. En las descargas el error del servidor
+// llega como Blob y hay que leerlo.
+export async function mensajeDeError(err, porDefecto = "No se pudo exportar. Intenta de nuevo") {
+  let datos = err?.response?.data;
+  if (datos instanceof Blob) {
+    try {
+      datos = JSON.parse(await datos.text());
+    } catch {
+      datos = null;
+    }
+  }
+  if (datos?.error) return datos.error;
+  if (!err?.response) return "Se perdió la conexión con el servidor mientras se exportaba";
+  return porDefecto;
 }
 
 export function exportMultiSheet(sheets, filename) {

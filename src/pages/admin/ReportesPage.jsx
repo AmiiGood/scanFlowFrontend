@@ -12,11 +12,13 @@ import {
   getPOsReporte,
   getDetalleCajas,
   getDetalleQRs,
+  descargarDetalleCajas,
+  descargarDetalleQRs,
   getUsuariosReporte,
 } from "@/api/reports";
 import { getLiberaciones } from "@/api/supervisores";
 import { getReseteos } from "@/api/reset";
-import { exportConTipos, exportToExcel } from "@/lib/exportExcel";
+import { exportToExcel, guardarExcel, mensajeDeError } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Search, X } from "lucide-react";
@@ -359,6 +361,7 @@ function TabCajas() {
   const [filters, setFilters] = useState({ sku: "", estado: "", po_number: "", fecha_desde: "", fecha_hasta: "", usuario: "" });
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
 
   const debouncedFilters = {
     sku: useDebounce(filters.sku, 300),
@@ -377,6 +380,7 @@ function TabCajas() {
 
   async function handleExport() {
     setExporting(true);
+    setErrorExport("");
     try {
       const res = await getCajasPorSKU({ ...debouncedFilters, all: 1 });
       exportToExcel(
@@ -396,6 +400,8 @@ function TabCajas() {
         })),
         "cajas-por-sku",
       );
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
     } finally {
       setExporting(false);
     }
@@ -435,7 +441,7 @@ function TabCajas() {
 
       <Panel
         title={`${fmtNum(data?.total)} cajas`}
-        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport}>Exportar todo</BotonExportar>}
         flush
       >
         <Tabla>
@@ -780,6 +786,7 @@ function TabDetalleCajas() {
   const [filters, setFilters] = useState(() => ({ codigo: "", sku: "", po_number: "", estado: "", turno: "", usuario: "", fecha_desde: hoyLocal(), fecha_hasta: hoyLocal() }));
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
 
   const debouncedFilters = {
     codigo: useDebounce(filters.codigo, 300),
@@ -805,11 +812,14 @@ function TabDetalleCajas() {
 
   async function handleExport() {
     setExporting(true);
+    setErrorExport("");
     try {
-      const res = await getDetalleCajas({ ...debouncedFilters, all: 1 });
+      const res = await descargarDetalleCajas(debouncedFilters);
       const rango = [filters.fecha_desde, filters.fecha_hasta].filter(Boolean).join("_a_");
       const sufijo = [rango, filters.turno && `turno-${filters.turno}`].filter(Boolean).join("-");
-      exportConTipos(COLUMNAS_CAJA_QR, res.data.data || [], `detalle-caja-qr${sufijo ? "-" + sufijo : ""}`);
+      guardarExcel(res.data, `detalle-caja-qr${sufijo ? "-" + sufijo : ""}`);
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
     } finally {
       setExporting(false);
     }
@@ -856,7 +866,7 @@ function TabDetalleCajas() {
 
       <Panel
         title={`${fmtNum(data?.total)} pares en ${fmtNum(data?.cajas)} cajas`}
-        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport}>Exportar todo</BotonExportar>}
         flush
       >
         <Tabla>
@@ -898,36 +908,6 @@ function TabDetalleCajas() {
 // --- Tab: Detalle QR ---
 // Una fila por QR ya usado (escaneado o enviado) con todo su recorrido. En
 // pantalla van las columnas principales; el Excel lleva todas.
-const COLUMNAS_QR = [
-  { titulo: "fecha", valor: (r) => r.escaneado_at, tipo: "fecha", ancho: 12 },
-  { titulo: "hora", valor: (r) => r.escaneado_at, tipo: "hora", ancho: 14 },
-  { titulo: "turno", valor: (r) => r.turno, ancho: 10 },
-  { titulo: "usuario", valor: (r) => r.usuario, ancho: 16 },
-  { titulo: "codigo_qr", valor: (r) => r.codigo_qr, ancho: 42 },
-  { titulo: "token", valor: (r) => r.token, ancho: 16 },
-  { titulo: "upc", valor: (r) => r.upc, ancho: 15 },
-  { titulo: "estado_qr", valor: (r) => r.qr_estado, ancho: 11 },
-  { titulo: "sku", valor: (r) => r.sku_number, ancho: 18 },
-  { titulo: "style_no", valor: (r) => r.style_no, ancho: 10 },
-  { titulo: "estilo", valor: (r) => r.style_name, ancho: 24 },
-  { titulo: "color", valor: (r) => r.color_name, ancho: 16 },
-  { titulo: "talla", valor: (r) => r.size, ancho: 8 },
-  { titulo: "caja", valor: (r) => r.codigo_caja, ancho: 34 },
-  { titulo: "estado_caja", valor: (r) => r.caja_estado, ancho: 11 },
-  { titulo: "como_se_embarco", valor: (r) => r.como_se_embarco, ancho: 24 },
-  { titulo: "carton", valor: (r) => r.carton_id, ancho: 22 },
-  { titulo: "tipo_carton", valor: (r) => r.carton_tipo, ancho: 11 },
-  { titulo: "estado_carton", valor: (r) => r.carton_estado, ancho: 12 },
-  { titulo: "fecha_embarque", valor: (r) => r.embarcado_at, tipo: "fecha", ancho: 14 },
-  { titulo: "hora_embarque", valor: (r) => r.embarcado_at, tipo: "hora", ancho: 14 },
-  { titulo: "usuario_embarque", valor: (r) => r.usuario_embarque, ancho: 16 },
-  { titulo: "po", valor: (r) => r.po_number, ancho: 12 },
-  { titulo: "estado_po", valor: (r) => r.po_estado, ancho: 11 },
-  { titulo: "cfm_xf_date", valor: (r) => r.cfm_xf_date, tipo: "fecha", ancho: 12 },
-  { titulo: "fecha_envio_t4", valor: (r) => r.enviado_t4_at, tipo: "fecha", ancho: 14 },
-  { titulo: "hora_envio_t4", valor: (r) => r.enviado_t4_at, tipo: "hora", ancho: 14 },
-];
-
 const COLUMNAS_QR_PANTALLA = ["fecha", "hora", "turno", "usuario", "token", "sku", "talla", "caja", "cartón", "PO", "estado"];
 
 function TabDetalleQRs() {
@@ -937,6 +917,7 @@ function TabDetalleQRs() {
   }));
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
 
   const debouncedFilters = {
     codigo: useDebounce(filters.codigo, 300),
@@ -964,11 +945,14 @@ function TabDetalleQRs() {
 
   async function handleExport() {
     setExporting(true);
+    setErrorExport("");
     try {
-      const res = await getDetalleQRs({ ...debouncedFilters, all: 1 });
+      const res = await descargarDetalleQRs(debouncedFilters);
       const rango = [filters.fecha_desde, filters.fecha_hasta].filter(Boolean).join("_a_");
       const sufijo = [rango, filters.turno && `turno-${filters.turno}`].filter(Boolean).join("-");
-      exportConTipos(COLUMNAS_QR, res.data.data || [], `detalle-qr${sufijo ? "-" + sufijo : ""}`);
+      guardarExcel(res.data, `detalle-qr${sufijo ? "-" + sufijo : ""}`);
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
     } finally {
       setExporting(false);
     }
@@ -1027,7 +1011,7 @@ function TabDetalleQRs() {
       <Panel
         title={`${fmtNum(data?.total)} QRs`}
         subtitle={data ? `${fmtNum(data.embarcados)} ya en cartón · ${fmtNum(data.enviados)} enviados a T4` : undefined}
-        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting}>Exportar todo</BotonExportar>}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport}>Exportar todo</BotonExportar>}
         flush
       >
         <Tabla>
@@ -1261,6 +1245,7 @@ function TabLiberaciones() {
   const [filters, setFilters] = useState({ fecha_desde: "", fecha_hasta: "" });
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["liberaciones", filters, page],
@@ -1275,6 +1260,7 @@ function TabLiberaciones() {
 
   async function handleExport() {
     setExporting(true);
+    setErrorExport("");
     try {
       const res = await getLiberaciones({ ...filters, all: 1 });
       exportToExcel(
@@ -1292,6 +1278,8 @@ function TabLiberaciones() {
         })),
         "liberaciones-de-caja",
       );
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
     } finally {
       setExporting(false);
     }
@@ -1313,7 +1301,7 @@ function TabLiberaciones() {
       <Panel
         title={`${fmtNum(data?.total)} cajas liberadas por un supervisor`}
         subtitle="Cajas que se dejaron incompletas con el bloqueo activo. Siguen abiertas hasta completarlas o resetearlas."
-        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} />}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport} />}
         flush
       >
         <Tabla>
@@ -1382,6 +1370,7 @@ function TabReseteos() {
   const [filters, setFilters] = useState({ fecha_desde: "", fecha_hasta: "", tipo: "" });
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["reseteos", filters, page],
@@ -1396,6 +1385,7 @@ function TabReseteos() {
 
   async function handleExport() {
     setExporting(true);
+    setErrorExport("");
     try {
       const res = await getReseteos({ ...filters, all: 1 });
       exportToExcel(
@@ -1411,6 +1401,8 @@ function TabReseteos() {
         })),
         "reseteos",
       );
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
     } finally {
       setExporting(false);
     }
@@ -1440,7 +1432,7 @@ function TabReseteos() {
       <Panel
         title={`${fmtNum(data?.total)} ${data?.total === 1 ? "reseteo" : "reseteos"}`}
         subtitle="Cada reset con su motivo. Los que no hizo un superadmin llevan el supervisor que los autorizó con su gafete."
-        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} />}
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport} />}
         flush
       >
         <Tabla>

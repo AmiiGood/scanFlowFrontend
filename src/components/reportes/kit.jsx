@@ -95,19 +95,26 @@ export function Campo({ label, children, className }) {
   );
 }
 
-export function BotonExportar({ onClick, disabled, cargando, children = "Exportar Excel" }) {
+export function BotonExportar({ onClick, disabled, cargando, error, children = "Exportar Excel" }) {
   const user = useAuthStore((s) => s.user);
   if (!puede(user, "reportes.exportar")) return null;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled || cargando}
-      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:pointer-events-none"
-    >
-      {cargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-      {cargando ? "Exportando..." : children}
-    </button>
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+      {error && (
+        <span role="alert" className="text-xs text-red-700">
+          {error}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled || cargando}
+        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:pointer-events-none"
+      >
+        {cargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+        {cargando ? "Exportando..." : children}
+      </button>
+    </span>
   );
 }
 
