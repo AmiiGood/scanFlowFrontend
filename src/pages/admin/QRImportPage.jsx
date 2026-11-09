@@ -11,6 +11,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { fmtFecha } from "@/lib/formato";
 import {
   Download,
   CheckCircle2,
@@ -21,6 +22,24 @@ import {
   Loader2,
   Link2,
 } from "lucide-react";
+
+// "Todo el histórico": Trysor devuelve todo lo que tiene desde esa fecha.
+const TODO = "2000-01-01";
+// La descarga sugerida empieza unos días antes de la última, por margen (Trysor
+// cuenta con su propia hora). Repetir días no hace daño: lo que ya está no se
+// duplica.
+const DIAS_DE_MARGEN = 2;
+
+const aFecha = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function fechaSugerida(jobs) {
+  const ultima = jobs.find((j) => j.tipo === "qr_import" && j.estado === "completado");
+  if (!ultima) return { fecha: TODO, ultima: null };
+  const d = new Date(ultima.created_at);
+  d.setDate(d.getDate() - DIAS_DE_MARGEN);
+  return { fecha: aFecha(d), ultima };
+}
 
 const ESTADO_JOB = {
   pendiente: {
@@ -63,6 +82,13 @@ function JobCard({ job }) {
           className={`${cfg.color} ${job.estado === "procesando" ? "animate-spin" : ""}`}
         />
         <span className={`text-sm font-medium ${cfg.color}`}>{job.estado}</span>
+        {job.parametros?.lastGetTime && (
+          <span className="text-xs text-zinc-500">
+            {job.parametros.lastGetTime.startsWith(TODO)
+              ? "todo el histórico"
+              : `desde ${fmtFecha(job.parametros.lastGetTime)}`}
+          </span>
+        )}
         <span className="text-zinc-500 text-xs ml-auto">
           {new Date(job.created_at).toLocaleString("es-MX")}
         </span>
@@ -129,7 +155,8 @@ function JobCard({ job }) {
 }
 
 export default function QRImportPage() {
-  const [lastGetTime, setLastGetTime] = useState("2000-01-01 00:00:00");
+  // null = la fecha sugerida (la última importación); una fecha = la que eligió.
+  const [desdeElegida, setDesdeElegida] = useState(null);
   const [activeJobId, setActiveJobId] = useState(null);
   const [matchResult, setMatchResult] = useState(null);
   const pollingRef = useRef(null);
@@ -144,8 +171,11 @@ export default function QRImportPage() {
     queryFn: () => getRecentJobs().then((r) => r.data),
   });
 
+  const sugerida = fechaSugerida(recentJobs);
+  const desde = desdeElegida ?? sugerida.fecha;
+
   const importMut = useMutation({
-    mutationFn: () => importQRs(lastGetTime),
+    mutationFn: () => importQRs(`${desde} 00:00:00`),
     onSuccess: (res) => {
       setActiveJobId(res.data.job_id);
       refetchJobs();
@@ -232,21 +262,53 @@ export default function QRImportPage() {
       {/* Configuración */}
       <div className="rounded-xl border border-zinc-200 bg-white p-5 mb-6 space-y-4">
         <h2 className="text-sm font-medium text-zinc-700">Nueva importación</h2>
-        <div className="space-y-1.5">
-          <Label className="text-zinc-600 text-xs uppercase tracking-wider">
-            Traer QRs desde fecha (LastGetTime)
+        <div className="space-y-2">
+          <Label htmlFor="qr-desde" className="text-zinc-600 text-xs uppercase tracking-wider">
+            Traer QRs desde
           </Label>
-          <Input
-            value={lastGetTime}
-            onChange={(e) => setLastGetTime(e.target.value)}
-            disabled={isRunning}
-            placeholder="2000-01-01 00:00:00"
-            className="bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9 max-w-xs font-mono text-sm"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="qr-desde"
+              type="date"
+              value={desde === TODO ? "" : desde}
+              max={aFecha(new Date())}
+              onChange={(e) => setDesdeElegida(e.target.value || TODO)}
+              disabled={isRunning}
+              className="bg-white border-zinc-200 text-zinc-900 focus-visible:ring-blue-600/20 h-9 w-44 text-sm"
+            />
+            {sugerida.ultima && (
+              <button
+                type="button"
+                onClick={() => setDesdeElegida(null)}
+                disabled={isRunning}
+                className={`h-9 px-3 rounded-lg border text-xs font-medium disabled:opacity-50 ${
+                  desde === sugerida.fecha
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                }`}
+              >
+                Desde la última importación
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDesdeElegida(TODO)}
+              disabled={isRunning}
+              className={`h-9 px-3 rounded-lg border text-xs font-medium disabled:opacity-50 ${
+                desde === TODO
+                  ? "border-blue-600 bg-blue-50 text-blue-700"
+                  : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              Todo el histórico
+            </button>
+          </div>
           <p className="text-xs text-zinc-500">
-            Usa <span className="font-mono">2000-01-01 00:00:00</span> para
-            traer todos. Para importaciones incrementales usa la fecha del
-            último import.
+            {desde === TODO
+              ? "Trae todos los códigos que tiene Trysor. Puede tardar 15 minutos o más; los que ya están no se duplican. Úsalo si salen pares con «QR no encontrado»."
+              : sugerida.ultima && desde === sugerida.fecha
+                ? `La última importación fue el ${new Date(sugerida.ultima.created_at).toLocaleDateString("es-MX")} a las ${new Date(sugerida.ultima.created_at).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" })}; se empieza ${DIAS_DE_MARGEN} días antes por margen y lo repetido no se duplica.`
+                : `Trae los códigos que Trysor publicó del ${fmtFecha(desde)} a hoy.`}
           </p>
         </div>
 
