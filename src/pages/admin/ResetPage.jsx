@@ -5,7 +5,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { usePermisos } from "@/hooks/usePermisos";
 import PageHeader from "@/components/layout/PageHeader";
 import AutorizarReseteoModal from "@/components/admin/AutorizarReseteoModal";
-import { Trash2, AlertTriangle, Box, Package, FileText, CheckCircle2, XCircle, Loader2, Search, X, Unlink } from "lucide-react";
+import { Trash2, AlertTriangle, Box, Package, FileText, CheckCircle2, XCircle, Loader2, Search, X, Unlink, Lock } from "lucide-react";
 
 // Cada pestaña aparece si el perfil tiene alguno de sus permisos.
 const TABS = [
@@ -15,9 +15,9 @@ const TABS = [
 ];
 
 const ADVERTENCIA = {
-  caja: "Se borrarán todos los escaneos de la caja y sus QRs volverán a estado disponible. Sus pares salen de los cartones donde estén y esos cartones vuelven a pendiente.",
+  caja: "Se borrarán todos los escaneos de la caja y sus QRs volverán a estado disponible. La caja vuelve a abierta y en cero.",
   carton: "Se borrarán los escaneos de Embarque del cartón, se desligarán sus cajas (vuelven a empacada) y el cartón vuelve a pendiente.",
-  po: "Se resetearán todos los cartones y cajas de la PO. Los QRs volverán a estado disponible y la PO a pendiente.",
+  po: "Se vacían todos los cartones de la PO: los pares sueltos regresan a sus cajas y las cajas completas quedan libres para otra PO. La PO vuelve a pendiente. No se borra nada de Producción.",
   desasociar: "Los pares de la caja salen de los cartones donde están (también los repartidos par por par o en musicales por PO) y esos cartones vuelven a pendiente. La caja sigue empacada con sus QRs escaneados, lista para volver a asignarse.",
 };
 
@@ -39,7 +39,7 @@ function detalle(tipo, r) {
       : r.pares_en_cartones > 0
         ? `${r.pares_en_cartones} pares en cartones (PO ${r.pos_por_par})`
         : "sin cartón";
-    return `${r.sku_number} · ${r.escaneados}/${r.cantidad_pares} pares · ${enCartones} · ${r.fecha}`;
+    return `${r.sku_number} · ${r.escaneados}/${r.cantidad_pares} pares · ${enCartones}${r.consolidada ? " · consolidada" : ""} · ${r.fecha}`;
   }
   if (tipo === "carton")
     return `PO ${r.po_number} · ${r.tipo} · ${r.pares_esperados} pares`;
@@ -86,6 +86,18 @@ export default function ResetPage() {
     tab === "caja" && seleccion && puede("reset.desasociar") &&
     (seleccion.carton_id || seleccion.pares_en_cartones > 0);
   const puedeResetear = !!seleccion && puede(`reset.${tab}`);
+  // Una caja no se resetea si ya tiene pares en una PO (primero se desasocia) o
+  // si participó en una consolidación (se corrige consolidando de regreso).
+  const cajaBloqueada =
+    tab === "caja" && seleccion
+      ? seleccion.consolidada
+        ? "Esta caja tiene pares consolidados, así que no se puede resetear. Si un par quedó en la caja equivocada, consolídalo de regreso desde Consolidar cajas."
+        : seleccion.carton_id
+          ? `La caja está completa en el cartón ${seleccion.carton_id} de la PO ${seleccion.po_number}. Primero desasóciala; después podrás resetearla.`
+          : seleccion.pares_en_cartones > 0
+            ? `La caja tiene ${seleccion.pares_en_cartones} ${seleccion.pares_en_cartones === 1 ? "par" : "pares"} en la PO ${seleccion.pos_por_par}. Primero desasóciala; después podrás resetearla.`
+            : null
+      : null;
 
   function handleTabChange(key) {
     setTab(key);
@@ -213,8 +225,19 @@ export default function ResetPage() {
         </div>
       )}
 
+      {/* Caja que no se puede resetear */}
+      {puedeResetear && cajaBloqueada && !result && (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-5 flex items-start gap-3">
+          <Lock size={16} className="text-zinc-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-zinc-700 font-medium">No se puede resetear</p>
+            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{cajaBloqueada}</p>
+          </div>
+        </div>
+      )}
+
       {/* Reset */}
-      {puedeResetear && !result && (
+      {puedeResetear && !cajaBloqueada && !result && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />

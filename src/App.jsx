@@ -20,6 +20,8 @@ import ProduccionPage from "@/pages/produccion/ProduccionPage";
 
 import EmbarquePage from "@/pages/embarque/EmbarquePage";
 
+import ConsolidarPage from "@/pages/almacen/ConsolidarPage";
+
 export default function App() {
   return (
     <Routes>
@@ -46,6 +48,17 @@ export default function App() {
           <ProtectedRoute permiso={EMBARQUE}>
             <AppLayout>
               <EmbarquePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Almacén */}
+      <Route
+        path="/almacen/consolidar"
+        element={
+          <ProtectedRoute permiso={"almacen.consolidar"}>
+            <AppLayout>
+              <ConsolidarPage />
             </AppLayout>
           </ProtectedRoute>
         }

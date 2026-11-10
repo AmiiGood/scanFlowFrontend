@@ -18,6 +18,7 @@ import {
 } from "@/api/reports";
 import { getLiberaciones } from "@/api/supervisores";
 import { getReseteos } from "@/api/reset";
+import { getConsolidaciones } from "@/api/consolidacion";
 import { exportToExcel, guardarExcel, mensajeDeError } from "@/lib/exportExcel";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ const TABS = [
   { id: "envios", label: "Historial T4" },
   { id: "liberaciones", label: "Liberaciones" },
   { id: "reseteos", label: "Reseteos" },
+  { id: "consolidaciones", label: "Consolidaciones" },
 ];
 
 // Mantiene la página anterior visible mientras llega la siguiente.
@@ -305,6 +307,28 @@ function TabTrazabilidad() {
                         <td className={cn(td, "text-zinc-500 tabular-nums whitespace-nowrap")}>{new Date(e.escaneado_at).toLocaleString("es-MX")}</td>
                         <td className={tdMono}>{e.codigo_caja || e.carton_id}</td>
                         <td className={td}>{e.po_number ? `PO ${e.po_number}` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Tabla>
+              </Panel>
+            )}
+
+            {data.consolidaciones?.length > 0 && (
+              <Panel
+                title={`Movimientos entre cajas (${data.consolidaciones.length})`}
+                subtitle="Se consolidó en almacén: la caja de arriba es en la que está ahora"
+                flush
+              >
+                <Tabla>
+                  <tbody>
+                    {data.consolidaciones.map((k, i) => (
+                      <tr key={i}>
+                        <td className={cn(td, "text-zinc-500 tabular-nums whitespace-nowrap")}>{fmtFechaHora(k.fecha_hora)}</td>
+                        <td className={cn(tdMono, "break-all")}>
+                          {k.caja_origen} → <span className="text-zinc-900">{k.caja_destino}</span>
+                        </td>
+                        <td className={cn(td, "whitespace-nowrap")}>{k.usuario}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1361,6 +1385,9 @@ function resumenReset(r) {
   const x = r.resultado || {};
   if (r.tipo === "caja") return `${fmtNum(x.escaneos_borrados)} escaneos borrados`;
   if (r.tipo === "carton") return `${fmtNum(x.escaneos_musicales_borrados)} pares quitados · ${fmtNum(x.cajas_desligadas)} cajas desligadas`;
+  // Desde nov 2026 el reset de PO ya no borra Producción (pares_sueltos_quitados).
+  if (r.tipo === "po" && x.pares_sueltos_quitados !== undefined)
+    return `${fmtNum(x.cartones_reseteados)} cartones · ${fmtNum(x.cajas_desligadas)} cajas desligadas · ${fmtNum(x.pares_sueltos_quitados)} pares sueltos quitados`;
   if (r.tipo === "po") return `${fmtNum(x.cartones_reseteados)} cartones · ${fmtNum(x.cajas_desligadas)} cajas · ${fmtNum((x.escaneos_cajas_borrados || 0) + (x.escaneos_musicales_borrados || 0))} escaneos`;
   if (r.tipo === "desasociar_caja") return `${x.cartones_afectados} cartones · PO ${x.pos}`;
   return "";
@@ -1477,6 +1504,110 @@ function TabReseteos() {
   );
 }
 
+// --- Tab: Consolidaciones ---
+// Un renglón por par que se movió de caja en almacén.
+function TabConsolidaciones() {
+  const [filters, setFilters] = useState({ fecha_desde: "", fecha_hasta: "", codigo: "" });
+  const debouncedFilters = useDebounce(filters, 400);
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const [errorExport, setErrorExport] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["consolidaciones", debouncedFilters, page],
+    queryFn: () => getConsolidaciones({ ...debouncedFilters, page, limit: 50 }).then((r) => r.data),
+    placeholderData: conservar,
+  });
+
+  function set(key, value) {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setErrorExport("");
+    try {
+      const res = await getConsolidaciones({ ...debouncedFilters, all: 1 });
+      exportToExcel(
+        (res.data.data || []).map((r) => ({
+          "Fecha y hora": fmtFechaHora(r.fecha_hora),
+          "Código QR": r.codigo_qr,
+          SKU: r.sku_number || "",
+          Talla: r.size || "",
+          "Caja de origen": r.caja_origen,
+          "Caja destino": r.caja_destino,
+          Usuario: r.usuario || "",
+        })),
+        "consolidaciones",
+      );
+    } catch (e) {
+      setErrorExport(await mensajeDeError(e));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const filas = data?.data || [];
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-5">
+          <Campo label="Caja, QR o SKU" className="col-span-2">
+            <input value={filters.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Todo o parte del código" className={cn(inputCls, "font-mono")} />
+          </Campo>
+          <Campo label="Desde">
+            <input type="date" value={filters.fecha_desde} onChange={(e) => set("fecha_desde", e.target.value)} className={inputCls} />
+          </Campo>
+          <Campo label="Hasta">
+            <input type="date" value={filters.fecha_hasta} onChange={(e) => set("fecha_hasta", e.target.value)} className={inputCls} />
+          </Campo>
+        </div>
+      </Panel>
+      <Panel
+        title={`${fmtNum(data?.total)} ${data?.total === 1 ? "par movido" : "pares movidos"}`}
+        subtitle="Pares que se juntaron en otra caja del mismo SKU. Su escaneo de Producción conserva fecha, turno y línea."
+        actions={<BotonExportar onClick={handleExport} disabled={!data?.total} cargando={exporting} error={errorExport} />}
+        flush
+      >
+        <Tabla>
+          <thead>
+            <tr>
+              <th className={th}>Fecha y hora</th>
+              <th className={th}>Par</th>
+              <th className={th}>SKU</th>
+              <th className={th}>De la caja</th>
+              <th className={th}>A la caja</th>
+              <th className={th}>Usuario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <FilaMensaje cols={6}>Cargando…</FilaMensaje>
+            ) : filas.length === 0 ? (
+              <FilaMensaje cols={6}>No hay consolidaciones con estos filtros</FilaMensaje>
+            ) : (
+              filas.map((r) => (
+                <tr key={r.id} className="hover:bg-zinc-50">
+                  <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
+                  <td className={tdMono}>{r.token}</td>
+                  <td className={cn(td, "whitespace-nowrap")}>
+                    <span className="font-mono text-xs text-zinc-900">{r.sku_number}</span>
+                  </td>
+                  <td className={cn(tdMono, "break-all")}>{r.caja_origen}</td>
+                  <td className={cn(tdMono, "break-all text-zinc-900")}>{r.caja_destino}</td>
+                  <td className={cn(td, "whitespace-nowrap text-zinc-900")}>{r.usuario}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Tabla>
+        <Paginacion page={data?.page || 1} pages={data?.pages || 1} total={data?.total || 0} limit={50} onPage={setPage} />
+      </Panel>
+    </div>
+  );
+}
+
 // --- Página principal ---
 const TAB_CONTENT = {
   produccion: TabProduccion,
@@ -1490,6 +1621,7 @@ const TAB_CONTENT = {
   envios: TabEnviosT4,
   liberaciones: TabLiberaciones,
   reseteos: TabReseteos,
+  consolidaciones: TabConsolidaciones,
 };
 
 export default function ReportesPage() {

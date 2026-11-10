@@ -12,6 +12,7 @@ const INICIO = [
   ["dashboard.ver", "/admin"],
   ["produccion.escanear", "/produccion"],
   [EMBARQUE, "/embarque"],
+  ["almacen.consolidar", "/almacen/consolidar"],
   ["pos.ver", "/admin/purchase-orders"],
   ["reportes.ver", "/admin/reportes"],
   [RESET, "/admin/reset"],

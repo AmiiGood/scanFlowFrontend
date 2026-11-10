@@ -17,6 +17,7 @@ import {
   Trash2,
   Settings,
   Lock,
+  Boxes,
 } from "lucide-react";
 
 // Cada sección aparece si el perfil tiene alguno de sus permisos. Las
@@ -24,6 +25,7 @@ import {
 const NAV = [
   { to: "/produccion", icon: PackageOpen, label: "Producción", permiso: "produccion.escanear", estacion: true },
   { to: "/embarque", icon: Truck, label: "Embarque", permiso: EMBARQUE, estacion: true },
+  { to: "/almacen/consolidar", icon: Boxes, label: "Consolidar cajas", permiso: "almacen.consolidar" },
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", permiso: "dashboard.ver" },
   { to: "/admin/usuarios", icon: Users, label: "Usuarios", permiso: "usuarios.administrar" },
   { to: "/admin/skus", icon: ShoppingBag, label: "SKUs", permiso: "skus.administrar" },
