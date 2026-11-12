@@ -227,13 +227,24 @@ function FilaPO({ p, cargado }) {
   );
 }
 
-export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, onCerrar }) {
+export function RevisionPOs({
+  analisis,
+  archivo,
+  cargado,
+  cargando,
+  onCargar,
+  onCerrar,
+  quitarSobrantes,
+  onQuitarSobrantes,
+  revisando,
+}) {
   const { resumen, pos, faltantes, errores_archivo } = analisis;
   const conProblema = pos.filter((p) => p.estado !== "ok" || p.avisos.length);
   const [soloProblemas, setSoloProblemas] = useState(conProblema.length > 0);
   const visibles = soloProblemas ? conProblema : pos;
   const aCargar = pos.filter((p) => p.estado !== "error").length;
-  const nadaQueCargar = resumen.cartones_nuevos + resumen.cartones_actualizados === 0;
+  const nadaQueCargar =
+    resumen.cartones_nuevos + resumen.cartones_actualizados + (resumen.cartones_quitados || 0) === 0;
   const paraPlantilla = faltantes.filter((f) => !f.sugerencia);
 
   return (
@@ -251,6 +262,11 @@ export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, on
             {n(resumen.cartones_sin_cambios)} sin cambios
           </Chip>
           {resumen.cartones_rechazados > 0 && <Chip tono="rojo">{n(resumen.cartones_rechazados)} cartones rechazados</Chip>}
+          {resumen.cartones_quitados > 0 && (
+            <Chip tono="ambar">
+              {pl(resumen.cartones_quitados, cargado ? "cartón quitado" : "cartón se quita", cargado ? "cartones quitados" : "cartones se quitan")}
+            </Chip>
+          )}
         </>
       }
       acciones={
@@ -268,6 +284,30 @@ export function RevisionPOs({ analisis, archivo, cargado, cargando, onCargar, on
       }
     >
       {errores_archivo.map((e, i) => <Aviso key={i}>{e}</Aviso>)}
+
+      {!cargado && resumen.cartones_sobrantes > 0 && onQuitarSobrantes && (
+        <label className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={quitarSobrantes}
+            disabled={revisando || cargando}
+            onChange={(e) => onQuitarSobrantes(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-blue-600"
+          />
+          <span>
+            <span className="block text-sm text-zinc-900 font-medium">
+              Quitar los cartones que ya no vienen en el archivo
+              {revisando && <Loader2 size={13} className="inline ml-2 animate-spin text-zinc-500" />}
+            </span>
+            <span className="block text-xs text-zinc-600 mt-0.5">
+              {pl(resumen.cartones_sobrantes, "cartón que ya está", "cartones que ya están")} en ScanFlow no{" "}
+              {resumen.cartones_sobrantes === 1 ? "viene" : "vienen"} en este archivo. Márcalo cuando cancelaron una PO y la
+              volvieron a crear con otros cartones. Solo se quitan cartones vacíos; si alguno tiene pares, primero haz Reset
+              de PO.
+            </span>
+          </span>
+        </label>
+      )}
 
       {!cargado && resumen.incompletas > 0 && (
         <Aviso tono="ambar">

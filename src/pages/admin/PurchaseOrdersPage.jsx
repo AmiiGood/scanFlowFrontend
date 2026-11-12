@@ -55,16 +55,17 @@ export default function PurchaseOrdersPage() {
   const [archivo, setArchivo] = useState(null);
   const [analisis, setAnalisis] = useState(null);
   const [cargado, setCargado] = useState(false);
+  const [quitarSobrantes, setQuitarSobrantes] = useState(false);
   const [error, setError] = useState(null);
   const falla = (e) => setError(e.response?.data?.error || "Error al leer el archivo");
 
   const validarMut = useMutation({
-    mutationFn: (file) => importPurchaseOrders(file, "validar"),
+    mutationFn: ({ file, quitar }) => importPurchaseOrders(file, "validar", { quitarSobrantes: quitar }),
     onSuccess: (res) => setAnalisis(res.data),
     onError: falla,
   });
   const cargarMut = useMutation({
-    mutationFn: () => importPurchaseOrders(archivo, "cargar"),
+    mutationFn: () => importPurchaseOrders(archivo, "cargar", { quitarSobrantes }),
     onSuccess: (res) => {
       setAnalisis(res.data);
       setCargado(true);
@@ -81,7 +82,14 @@ export default function PurchaseOrdersPage() {
     setAnalisis(null);
     setCargado(false);
     setError(null);
-    validarMut.mutate(file);
+    setQuitarSobrantes(false);
+    validarMut.mutate({ file, quitar: false });
+  }
+
+  // Cambia qué pasará con los cartones que ya no vienen: se vuelve a revisar.
+  function cambiarQuitarSobrantes(quitar) {
+    setQuitarSobrantes(quitar);
+    validarMut.mutate({ file: archivo, quitar });
   }
 
   function cerrarRevision() {
@@ -146,6 +154,9 @@ export default function PurchaseOrdersPage() {
           archivo={archivo?.name}
           cargado={cargado}
           cargando={cargarMut.isPending}
+          quitarSobrantes={quitarSobrantes}
+          onQuitarSobrantes={cambiarQuitarSobrantes}
+          revisando={validarMut.isPending}
           onCargar={() => cargarMut.mutate()}
           onCerrar={cerrarRevision}
         />
