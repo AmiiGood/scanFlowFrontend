@@ -18,6 +18,7 @@ import {
   Settings,
   Lock,
   Boxes,
+  ScanSearch,
 } from "lucide-react";
 
 // Cada sección aparece si el perfil tiene alguno de sus permisos. Las
@@ -32,6 +33,7 @@ const NAV = [
   { to: "/admin/purchase-orders", icon: QrCode, label: "Purchase Orders", permiso: "pos.ver" },
   { to: "/admin/qr-import", icon: QrCode, label: "Importar QRs", permiso: "qrs.importar" },
   { to: "/admin/reportes", icon: BarChart3, label: "Reportes", permiso: "reportes.ver" },
+  { to: "/admin/trazabilidad", icon: ScanSearch, label: "Trazabilidad", permiso: "reportes.ver" },
   { to: "/admin/backup", icon: Database, label: "Backup", permiso: "backup.generar" },
   { to: "/admin/reset", icon: Trash2, label: "Reset", permiso: RESET },
   { to: "/admin/configuracion", icon: Settings, label: "Configuración", permiso: CONFIGURACION },

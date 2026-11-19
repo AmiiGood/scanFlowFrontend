@@ -2,6 +2,7 @@
 // estados, barras de avance y paginación. Todo usa la misma paleta neutra con
 // un solo acento azul.
 import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { fmtNum } from "@/lib/formato";
 import { useAuthStore } from "@/store/authStore";
@@ -225,5 +226,19 @@ export function Paginacion({ page, pages, total, limit, onPage }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// Un QR o una caja de un reporte: lleva a su trazabilidad.
+export function EnlaceTraza({ codigo, children, className }) {
+  if (!codigo) return children ?? "—";
+  return (
+    <Link
+      to={`/admin/trazabilidad?codigo=${encodeURIComponent(codigo)}`}
+      title="Ver su recorrido"
+      className={cn("hover:text-blue-700 hover:underline underline-offset-2", className)}
+    >
+      {children ?? codigo}
+    </Link>
   );
 }

@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   getProduccionPorDia,
-  getTrazabilidadQR,
   getCajasPorSKU,
   getQrsSinSKUPorUPC,
   getHistorialEnviosT4,
@@ -29,6 +28,7 @@ import {
   Kpi,
   BotonExportar,
   Campo,
+  EnlaceTraza,
   Estado,
   FilaMensaje,
   PageTitle,
@@ -42,7 +42,6 @@ import { fmtFecha, fmtFechaHora, fmtHora12, fmtNum } from "@/lib/formato";
 
 const TABS = [
   { id: "produccion", label: "Producción por día" },
-  { id: "trazabilidad", label: "Trazabilidad QR" },
   { id: "cajas", label: "Cajas por SKU" },
   { id: "pendientes", label: "Cartones pendientes" },
   { id: "detalle-po", label: "Detalle PO-Cartón-QR" },
@@ -168,193 +167,6 @@ function TabProduccion() {
           </tbody>
         </Tabla>
       </Panel>
-    </div>
-  );
-}
-
-// --- Tab: Trazabilidad QR ---
-function normalizarQR(raw) {
-  return raw
-    .trim()
-    .replace(/Ñ/g, ":")
-    .replace(/-{2,}/g, "//")
-    .replace(/-/g, "/");
-}
-
-function Dato({ label, children, mono }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-zinc-500">{label}</dt>
-      <dd className={cn("text-sm text-zinc-900 mt-0.5", mono && "font-mono text-xs break-all")}>{children || "—"}</dd>
-    </div>
-  );
-}
-
-function TabTrazabilidad() {
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["trazabilidad-qr", query],
-    queryFn: () => getTrazabilidadQR(query).then((r) => r.data),
-    enabled: !!query,
-  });
-
-  function buscar(valor) {
-    const limpio = normalizarQR(valor);
-    setSearch(limpio);
-    setQuery(limpio);
-  }
-
-  const cadena = data
-    ? [
-        { paso: "Escaneo en Producción", valor: data.escaneado_por, detalle: data.escaneado_at && <span className="text-xs text-zinc-500">{new Date(data.escaneado_at).toLocaleString("es-MX")}</span> },
-        { paso: "Caja", valor: data.codigo_caja || "Directo a cartón", detalle: data.caja_estado && <Estado valor={data.caja_estado} /> },
-        { paso: "Cartón", valor: data.carton_id, detalle: data.carton_tipo && (<span className="flex gap-1.5"><Estado valor={data.carton_tipo} /><Estado valor={data.carton_estado} /></span>) },
-        { paso: "Purchase order", valor: data.po_number, detalle: data.po_estado && (<span className="flex items-center gap-1.5"><Estado valor={data.po_estado} />{data.cfm_xf_date && <span className="text-xs text-zinc-500">XF {fmtFecha(data.cfm_xf_date)}</span>}</span>) },
-      ]
-    : [];
-
-  return (
-    <div className="space-y-4">
-      <Panel>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            buscar(search);
-          }}
-          className="flex flex-wrap items-end gap-3 pt-5"
-        >
-          <Campo label="Código QR" className="flex-1 min-w-72 max-w-2xl">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                value={search}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  // Auto-busca cuando el escáner termina (mete \n o \r al final)
-                  if (/[\r\n]$/.test(v)) buscar(v);
-                  else setSearch(v);
-                }}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  buscar(e.clipboardData.getData("text"));
-                }}
-                placeholder="Escanea o pega el QR: URL completa, lectura del escáner o solo el código"
-                className={cn(inputCls, "pl-9 font-mono text-xs")}
-                autoFocus
-              />
-            </div>
-          </Campo>
-          <Boton type="submit">Buscar</Boton>
-          {query && (
-            <Boton variante="secundario" onClick={() => { setSearch(""); setQuery(""); }}>
-              <X size={14} /> Limpiar
-            </Boton>
-          )}
-        </form>
-        {search && search !== query && (
-          <p className="text-xs text-zinc-500 font-mono mt-2">Se buscará: {normalizarQR(search)}</p>
-        )}
-      </Panel>
-
-      {isLoading && <p className="text-sm text-zinc-500">Buscando…</p>}
-      {error && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          {error.response?.data?.error || "QR no encontrado"}
-        </p>
-      )}
-
-      {data && (
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
-          <Panel className="xl:col-span-2" title="Código QR" actions={<Estado valor={data.estado} />}>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div className="col-span-2"><Dato label="Código" mono>{data.codigo_qr}</Dato></div>
-              <Dato label="UPC" mono>{data.upc}</Dato>
-              <Dato label="SKU" mono>{data.sku_number}</Dato>
-              <Dato label="Style No">{data.style_no}</Dato>
-              <Dato label="Talla">{data.size}</Dato>
-              <Dato label="Producto">{data.style_name}</Dato>
-              <Dato label="Color">{[data.color, data.color_name].filter(Boolean).join(" · ")}</Dato>
-              <Dato label="Escaneos">{fmtNum(data.total_escaneos)}</Dato>
-            </dl>
-          </Panel>
-
-          <div className="xl:col-span-3 space-y-4">
-            {data.total_escaneos > 0 && (
-              <Panel title="Cadena de custodia" subtitle="Escaneo más reciente">
-                <ol className="relative border-l border-zinc-200 ml-1.5 space-y-4">
-                  {cadena.filter((c) => c.valor).map((c) => (
-                    <li key={c.paso} className="relative pl-5">
-                      <span className="absolute -left-[5.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-600 ring-4 ring-white" />
-                      <p className="text-xs text-zinc-500">{c.paso}</p>
-                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <span className="font-mono text-xs text-zinc-900">{c.valor}</span>
-                        {c.detalle}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </Panel>
-            )}
-
-            {data.escaneos?.length > 1 && (
-              <Panel title={`Historial de escaneos (${data.escaneos.length})`} flush>
-                <Tabla>
-                  <tbody>
-                    {data.escaneos.map((e) => (
-                      <tr key={e.id}>
-                        <td className={cn(td, "text-zinc-500 tabular-nums whitespace-nowrap")}>{new Date(e.escaneado_at).toLocaleString("es-MX")}</td>
-                        <td className={tdMono}>{e.codigo_caja || e.carton_id}</td>
-                        <td className={td}>{e.po_number ? `PO ${e.po_number}` : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Tabla>
-              </Panel>
-            )}
-
-            {data.consolidaciones?.length > 0 && (
-              <Panel
-                title={`Movimientos entre cajas (${data.consolidaciones.length})`}
-                subtitle="Se consolidó en almacén: la caja de arriba es en la que está ahora"
-                flush
-              >
-                <Tabla>
-                  <tbody>
-                    {data.consolidaciones.map((k, i) => (
-                      <tr key={i}>
-                        <td className={cn(td, "text-zinc-500 tabular-nums whitespace-nowrap")}>{fmtFechaHora(k.fecha_hora)}</td>
-                        <td className={cn(tdMono, "break-all")}>
-                          {k.caja_origen} → <span className="text-zinc-900">{k.caja_destino}</span>
-                        </td>
-                        <td className={cn(td, "whitespace-nowrap")}>{k.usuario}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Tabla>
-              </Panel>
-            )}
-
-            {data.envios?.length > 0 && (
-              <Panel title="Envíos a T4" flush>
-                <Tabla>
-                  <tbody>
-                    {data.envios.map((e, i) => (
-                      <tr key={i}>
-                        <td className={td}><Estado valor={e.estado} /></td>
-                        <td className={cn(td, "text-zinc-500 text-right tabular-nums")}>
-                          {new Date(e.enviado_at || e.cancelado_at).toLocaleString("es-MX")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Tabla>
-              </Panel>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -490,7 +302,7 @@ function TabCajas() {
             ) : (
               data.data.map((r) => (
                 <tr key={r.id} className="hover:bg-zinc-50">
-                  <td className={tdMono}>{r.codigo_caja}</td>
+                  <td className={tdMono}><EnlaceTraza codigo={r.codigo_caja} /></td>
                   <td className={cn(td, "font-mono text-xs")}>
                     {r.po_number ? (<><div className="text-zinc-900">{r.po_number}</div><div className="text-zinc-500">{r.carton_id}</div></>) : <span className="text-zinc-400">—</span>}
                   </td>
@@ -769,7 +581,7 @@ function TabDetallePO() {
                     <td className={tdMono}>{r.carton_id}</td>
                     <td className={cn(td, "font-mono text-xs")}>{r.codigo_caja || "—"}</td>
                     <td className={cn(td, "font-mono text-xs")}>{r.sku_number}</td>
-                    <td className={cn(td, "font-mono text-[11px] text-zinc-500 break-all")}>{r.codigo_qr}</td>
+                    <td className={cn(td, "font-mono text-[11px] text-zinc-500 break-all")}><EnlaceTraza codigo={r.codigo_qr} /></td>
                     <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>
                       {r.escaneado_at ? new Date(r.escaneado_at).toLocaleString("es-MX") : "—"}
                     </td>
@@ -914,8 +726,8 @@ function TabDetalleCajas() {
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.usuario || "—"}</td>
                   <td className={cn(td, "font-mono text-[11px] text-zinc-500 whitespace-nowrap")}>{r.codigo_qr}</td>
-                  <td className={cn(td, "font-mono text-xs text-zinc-900")}>{r.token}</td>
-                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja}</td>
+                  <td className={cn(td, "font-mono text-xs text-zinc-900")}><EnlaceTraza codigo={r.codigo_qr}>{r.token}</EnlaceTraza></td>
+                  <td className={cn(td, "font-mono text-xs whitespace-nowrap")}><EnlaceTraza codigo={r.codigo_caja} /></td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.sku_number}</td>
                   <td className={cn(td, "text-xs")}>{r.size}</td>
                 </tr>
@@ -1058,7 +870,7 @@ function TabDetalleQRs() {
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs")}>{fmtHora12(r.escaneado_at)}</td>
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.turno}</td>
                   <td className={cn(td, "whitespace-nowrap text-xs")}>{r.usuario || "—"}</td>
-                  <td className={cn(td, "font-mono text-xs text-zinc-900")} title={r.codigo_qr}>{r.token}</td>
+                  <td className={cn(td, "font-mono text-xs text-zinc-900")}><EnlaceTraza codigo={r.codigo_qr}>{r.token}</EnlaceTraza></td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.sku_number}</td>
                   <td className={cn(td, "text-xs")}>{r.size}</td>
                   <td className={cn(td, "font-mono text-xs whitespace-nowrap")}>{r.codigo_caja || "—"}</td>
@@ -1349,7 +1161,7 @@ function TabLiberaciones() {
                 <tr key={r.id} className="align-top hover:bg-zinc-50">
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
                   <td className={cn(td, "font-mono text-xs")}>
-                    <div className="text-zinc-900">{r.codigo_caja}</div>
+                    <div className="text-zinc-900"><EnlaceTraza codigo={r.codigo_caja} /></div>
                     <div className="text-zinc-500">{r.sku_number}</div>
                   </td>
                   <td className={cn(tdNum, "text-amber-700 font-medium")}>{r.pares_escaneados}/{r.cantidad_pares}</td>
@@ -1590,12 +1402,12 @@ function TabConsolidaciones() {
               filas.map((r) => (
                 <tr key={r.id} className="hover:bg-zinc-50">
                   <td className={cn(td, "whitespace-nowrap tabular-nums text-xs text-zinc-500")}>{fmtFechaHora(r.fecha_hora)}</td>
-                  <td className={tdMono}>{r.token}</td>
+                  <td className={tdMono}><EnlaceTraza codigo={r.codigo_qr}>{r.token}</EnlaceTraza></td>
                   <td className={cn(td, "whitespace-nowrap")}>
                     <span className="font-mono text-xs text-zinc-900">{r.sku_number}</span>
                   </td>
-                  <td className={cn(tdMono, "break-all")}>{r.caja_origen}</td>
-                  <td className={cn(tdMono, "break-all text-zinc-900")}>{r.caja_destino}</td>
+                  <td className={cn(tdMono, "break-all")}><EnlaceTraza codigo={r.caja_origen} /></td>
+                  <td className={cn(tdMono, "break-all text-zinc-900")}><EnlaceTraza codigo={r.caja_destino} /></td>
                   <td className={cn(td, "whitespace-nowrap text-zinc-900")}>{r.usuario}</td>
                 </tr>
               ))
@@ -1611,7 +1423,6 @@ function TabConsolidaciones() {
 // --- Página principal ---
 const TAB_CONTENT = {
   produccion: TabProduccion,
-  trazabilidad: TabTrazabilidad,
   cajas: TabCajas,
   pendientes: TabPendientes,
   "detalle-po": TabDetallePO,
@@ -1627,12 +1438,14 @@ const TAB_CONTENT = {
 export default function ReportesPage() {
   // La pestaña va en la URL (?tab=) para poder enlazarla desde el Dashboard.
   const [params, setParams] = useSearchParams();
+  // La trazabilidad ahora es su propia pantalla; los enlaces viejos llegan ahí.
+  if (params.get("tab") === "trazabilidad") return <Navigate to="/admin/trazabilidad" replace />;
   const activeTab = TAB_CONTENT[params.get("tab")] ? params.get("tab") : "produccion";
   const Contenido = TAB_CONTENT[activeTab];
 
   return (
     <div className="p-8 max-w-[1400px]">
-      <PageTitle title="Reportes" description="Producción, embarque y trazabilidad de códigos" />
+      <PageTitle title="Reportes" description="Producción, embarque, POs y movimientos" />
 
       {/* El borde inferior va como sombra interna: un border-b con -mb-px en las
           pestañas desborda 1 px y hace aparecer una barra de scroll vertical. */}

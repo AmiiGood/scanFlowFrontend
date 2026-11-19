@@ -12,6 +12,7 @@ import PurchaseOrdersPage from "@/pages/admin/PurchaseOrdersPage";
 import PurchaseOrderDetailPage from "@/pages/admin/PurchaseOrderDetailPage";
 import QRImportPage from "@/pages/admin/QRImportPage";
 import ReportesPage from "@/pages/admin/ReportesPage";
+import TrazabilidadPage from "@/pages/admin/TrazabilidadPage";
 import BackupPage from "@/pages/admin/BackupPage";
 import ResetPage from "@/pages/admin/ResetPage";
 import ConfiguracionPage from "@/pages/admin/ConfiguracionPage";
@@ -134,7 +135,16 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/admin/trazabilidad"
+        element={
+          <ProtectedRoute permiso={"reportes.ver"}>
+            <AppLayout>
+              <TrazabilidadPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/backup"
         element={
