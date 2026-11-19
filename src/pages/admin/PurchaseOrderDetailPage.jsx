@@ -115,7 +115,7 @@ export default function PurchaseOrderDetailPage() {
         </button>
         <PageHeader
           title={`PO ${po.po_number}`}
-          description={`${Number(po.cantidad_pares).toLocaleString()} pares · ${totalCartones} cartones`}
+          description={`${po.cliente || "Sin cliente (se envía como Crocs)"} · ${Number(po.cantidad_pares).toLocaleString()} pares · ${totalCartones} cartones`}
           actions={
             <div className="flex items-center gap-2">
               {puedeCancelar && (

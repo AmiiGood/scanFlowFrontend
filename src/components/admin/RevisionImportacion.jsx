@@ -187,7 +187,13 @@ function FilaPO({ p, cargado }) {
         <td className={`${tdCls} text-zinc-500`}>
           {hayDetalle ? abierta ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : null}
         </td>
-        <td className={`${tdCls} font-mono text-zinc-900`}>{p.po_number}</td>
+        <td className={tdCls}>
+          <span className="font-mono text-zinc-900">{p.po_number}</span>
+          {p.cliente && <span className="block text-[11px] text-zinc-500">{p.cliente}</span>}
+          {p.cliente_anterior && (
+            <span className="block text-[11px] text-amber-700">antes: {p.cliente_anterior}</span>
+          )}
+        </td>
         <td className={`${tdCls} text-zinc-600`}>{p.existe ? p.estado_actual : "Nueva"}</td>
         <td className={`${tdCls} text-right tabular-nums text-zinc-600`}>{n(p.cartones_en_archivo)}</td>
         <td className={`${tdCls} text-right tabular-nums text-emerald-700`}>{p.nuevo ? n(p.nuevo) : "—"}</td>

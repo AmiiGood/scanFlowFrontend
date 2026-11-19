@@ -172,7 +172,7 @@ export default function PurchaseOrdersPage() {
           <Input
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Buscar por número de PO..."
+            placeholder="Buscar por PO o cliente..."
             className="pl-8 bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9"
           />
         </div>
@@ -202,6 +202,9 @@ export default function PurchaseOrdersPage() {
                 PO Number
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
+                Cliente
+              </th>
+              <th className="text-left px-4 py-3 text-zinc-500 font-medium">
                 Pares
               </th>
               <th className="text-left px-4 py-3 text-zinc-500 font-medium">
@@ -219,13 +222,13 @@ export default function PurchaseOrdersPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             ) : pos.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center">
+                <td colSpan={7} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-2 text-zinc-500">
                     <FileSpreadsheet size={24} />
                     <span className="text-sm">
@@ -245,6 +248,12 @@ export default function PurchaseOrdersPage() {
                 >
                   <td className="px-4 py-3 text-zinc-900 font-mono text-xs font-medium">
                     {po.po_number}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-zinc-700 text-xs max-w-56 truncate"
+                    title={po.cliente ? po.cliente : "Sin cliente: se envía a Trysor como Crocs"}
+                  >
+                    {po.cliente || <span className="text-zinc-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-zinc-700">
                     {Number(po.cantidad_pares).toLocaleString()}
