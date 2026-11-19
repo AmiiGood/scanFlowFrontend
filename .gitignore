@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cada equipo tiene el suyo (copia .env.example)
+.env
