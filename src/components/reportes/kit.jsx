@@ -229,9 +229,11 @@ export function Paginacion({ page, pages, total, limit, onPage }) {
   );
 }
 
-// Un QR o una caja de un reporte: lleva a su trazabilidad.
+// Un QR o una caja de un reporte: lleva a su trazabilidad (si el perfil la ve).
 export function EnlaceTraza({ codigo, children, className }) {
+  const user = useAuthStore((s) => s.user);
   if (!codigo) return children ?? "—";
+  if (!puede(user, "trazabilidad.ver")) return children ?? codigo;
   return (
     <Link
       to={`/admin/trazabilidad?codigo=${encodeURIComponent(codigo)}`}

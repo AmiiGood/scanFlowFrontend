@@ -15,6 +15,7 @@ const INICIO = [
   ["almacen.consolidar", "/almacen/consolidar"],
   ["pos.ver", "/admin/purchase-orders"],
   ["reportes.ver", "/admin/reportes"],
+  ["trazabilidad.ver", "/admin/trazabilidad"],
   [RESET, "/admin/reset"],
   ["usuarios.administrar", "/admin/usuarios"],
   ["skus.administrar", "/admin/skus"],

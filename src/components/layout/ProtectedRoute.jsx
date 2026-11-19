@@ -32,7 +32,13 @@ export default function ProtectedRoute({ children, permiso }) {
   const vigente = vigenteMe ? { ...user, ...vigenteMe } : user;
   // Sesión iniciada antes de los perfiles: se espera a tener sus permisos.
   if (!vigente.permisos) return isError ? <Navigate to="/login" replace /> : null;
-  if (permiso && !puedeAlguno(vigente, permiso)) return <Navigate to="/unauthorized" replace />;
+  if (permiso && !puedeAlguno(vigente, permiso)) {
+    // Los permisos guardados al iniciar sesión pueden ser viejos (un permiso
+    // nuevo, un cambio de perfil): antes de negar, se espera la respuesta del
+    // servidor. Solo si no responde se decide con lo guardado.
+    if (!vigenteMe && !isError) return null;
+    return <Navigate to="/unauthorized" replace />;
+  }
 
   return children;
 }

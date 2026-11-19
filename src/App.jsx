@@ -138,7 +138,7 @@ export default function App() {
       <Route
         path="/admin/trazabilidad"
         element={
-          <ProtectedRoute permiso={"reportes.ver"}>
+          <ProtectedRoute permiso={"trazabilidad.ver"}>
             <AppLayout>
               <TrazabilidadPage />
             </AppLayout>
