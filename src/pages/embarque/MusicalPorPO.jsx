@@ -6,6 +6,7 @@ import { buscarPOMusical, asignarCajaPOMusical, asignarQRPOMusical } from "@/api
 import { useSonidosEscaneo } from "@/hooks/useSonidosEscaneo";
 import { esEtiquetaCaja, normalizarCodigo } from "@/lib/codigosEscaneo";
 import EncabezadoEmbarque from "./EncabezadoEmbarque";
+import AvisoPOEnviada from "./AvisoPOEnviada";
 
 // Musicales por PO (SOP de musicales): se escribe la PO y se escanean las
 // cajas de Producción; sus pares quedan en la PO y el sistema los reparte a
@@ -43,6 +44,7 @@ function PanelPO({ resumen, separando }) {
           <span className="text-xs opacity-70">musicales completos</span>
         </div>
       </div>
+      <AvisoPOEnviada po={resumen.po} />
 
       <div className="p-6">
         <div className="flex items-end justify-between mb-3">

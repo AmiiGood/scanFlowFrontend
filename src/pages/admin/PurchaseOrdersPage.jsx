@@ -163,8 +163,8 @@ export default function PurchaseOrdersPage() {
       )}
 
       {/* Filtros */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-56 max-w-sm">
           <Search
             size={14}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
@@ -176,7 +176,7 @@ export default function PurchaseOrdersPage() {
             className="pl-8 bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-blue-600/20 h-9"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {ESTADOS.map((e) => (
             <button
               key={e}
@@ -190,6 +190,17 @@ export default function PurchaseOrdersPage() {
               {e}
             </button>
           ))}
+          <button
+            onClick={() => handleEstado("pendientes_t4")}
+            title="POs enviadas con pares escaneados después del envío, que todavía no están en Trysor"
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              estado === "pendientes_t4"
+                ? "bg-amber-50 text-amber-800 border-amber-300"
+                : "border-zinc-200 text-zinc-500 hover:text-zinc-600 hover:border-zinc-300"
+            }`}
+          >
+            sin mandar a Trysor
+          </button>
         </div>
       </div>
 
@@ -289,6 +300,14 @@ export default function PurchaseOrdersPage() {
                     >
                       {po.estado}
                     </span>
+                    {po.pendientes_t4 > 0 && (
+                      <p
+                        className="text-amber-700 text-[11px] mt-1 whitespace-nowrap"
+                        title="Pares escaneados después del envío: se mandan con el complemento"
+                      >
+                        {Number(po.pendientes_t4).toLocaleString()} sin mandar a Trysor
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <ChevronRight size={14} className="text-zinc-400 ml-auto" />

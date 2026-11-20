@@ -151,6 +151,18 @@ export default function PurchaseOrderDetailPage() {
         </div>
       )}
 
+      {po.pendientes_t4 > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">
+            {Number(po.pendientes_t4).toLocaleString()} pares de esta PO no se han mandado a Trysor
+          </p>
+          <p className="text-xs mt-0.5">
+            Se escanearon después de que la PO se envió. Mientras no se manden, el escáner de Trysor no los
+            reconoce. Se mandan con el complemento del envío parcial.
+          </p>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[

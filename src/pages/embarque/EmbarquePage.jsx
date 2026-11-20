@@ -22,6 +22,7 @@ import { useSonidosEscaneo } from "@/hooks/useSonidosEscaneo";
 import { esEtiquetaCaja, normalizarCodigo } from "@/lib/codigosEscaneo";
 import EncabezadoEmbarque, { SelectorModo } from "./EncabezadoEmbarque";
 import MusicalPorPO from "./MusicalPorPO";
+import AvisoPOEnviada from "./AvisoPOEnviada";
 import { usePermisos } from "@/hooks/usePermisos";
 
 function getModoEscaneo(carton) {
@@ -74,6 +75,7 @@ function ResumenPOPanel({ resumen, cartonActivoId }) {
           <span className="text-xs opacity-70">cartones</span>
         </div>
       </div>
+      <AvisoPOEnviada po={po} />
 
       <div className="px-5 py-3">
         <div className="h-2 rounded-full bg-gray-100 overflow-hidden mb-3">
